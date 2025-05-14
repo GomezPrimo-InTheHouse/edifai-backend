@@ -1,5 +1,6 @@
 import express from 'express';
-import userRouter from './routes/user.route.js'
+import router from "./routes/index.routes.js";
+
 import 'dotenv/config';
 import morgan from 'morgan';
 
@@ -16,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 
-app.use('/api/users', userRouter)
+app.use('/api', router)
 
 
 const PORT = process.env.PORT || 5000;
