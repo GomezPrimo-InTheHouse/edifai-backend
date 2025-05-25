@@ -61,7 +61,7 @@ const authenticateUser = (req, res, next) => {
 const refreshTokens = [];
 
 const generateRefreshToken = (user) => {
-  const refreshToken = jwt.sign(user, JWT_SECRET, { expiresIn: '24hr' });
+  const refreshToken = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '24hr' });
   refreshTokens.push(refreshToken);
   console.log('Refresh token generado:', refreshToken);
   return refreshToken;

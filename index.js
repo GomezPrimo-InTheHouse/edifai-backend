@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const { startAutoRefresh } = require('./utils/autoRefresh');
 
 const cookieParser = require('cookie-parser');
 
@@ -41,23 +42,25 @@ app.post('/login', authenticateUser, (req, res) => {
     const refreshToken = generateRefreshToken({ username: req.user.username },{ expiresIn: '24h' });
 
     // Almacenar el refresh token en un array o base de datos
-    refreshTokens.push(refreshToken);
-    console.log('Refresh token generado')
+    // refreshTokens.push(refreshToken);
+    
 
-    // // Grabar cookies (seguras)
-    // res.cookie('accessToken', token, {
-    //   httpOnly: true,
-    //   secure: true, // usa true si tienes HTTPS; en local puedes poner false
-    //   maxAge: 60 * 60 * 1000, // 1 hora en ms
-    //   sameSite: 'Strict'
-    // });
+    // Grabanmdo las cookies con los tokens, tanto los de access como el token de reshresh
+    // las busco en postman, parte inferior derecha.
+   
+    res.cookie('accessToken', token, {
+      httpOnly: true,
+      secure: true, 
+      maxAge: 60 * 60 * 1000, // 1 hora en ms
+      sameSite: 'Strict'
+    });
 
-    // res.cookie('refreshToken', refreshToken, {
-    //   httpOnly: true,
-    //   secure: true,
-    //   maxAge: 24 * 60 * 60 * 1000, // 24 horas en ms
-    //   sameSite: 'Strict'
-    // });
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 horas en ms
+      sameSite: 'Strict'
+    });
 
 
     res.json({ 
@@ -111,27 +114,56 @@ app.get('/info', verifyToken, (req, res) => {
 // Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor API corriendo en http://localhost:${PORT}`);
+  //llamo a la functon de auto refresh unos minutos antes de que expire el token
+   startAutoRefresh();
 });
 
 
 
-app.post('/refresh', async (req, res) => {
-  const { refreshToken } = req.body; //entra el token de refresh por el body
+// app.post('/refresh', async (req, res) => {
+//   const { refreshToken } = req.body; //entra el token de refresh por el body
+
+//   if (!refreshToken) {
+//     return res.status(400).json({ message: 'Refresh Token requerido' });
+//   }
+
+  
+
+//   try {
+//     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+
+//     const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    
+//     return res.json({ accessToken: newAccessToken });
+
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(403).json({ message: 'Refresh Token inválido o expirado' });
+//   }
+// });
+
+
+app.post('/refresh', (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
     return res.status(400).json({ message: 'Refresh Token requerido' });
   }
 
-  
-
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-
-    
+    res.cookie('accessToken', newAccessToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 60 * 60 * 1000, // 1 hora en ms
+      sameSite: 'Strict'
+    });
 
     return res.json({ accessToken: newAccessToken });
+
   } catch (error) {
     console.error(error);
     return res.status(403).json({ message: 'Refresh Token inválido o expirado' });
