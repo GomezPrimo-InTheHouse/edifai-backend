@@ -3,6 +3,10 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { registrarHistorial } = require('./microservicio-historial');
 const pool = require('./db/db.js');
+
+//llamo a la funcion de refresh token
+const { startAutoRefresh } = require('./utils/autoRefresh');
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Verificamosssss el token JWT
@@ -18,8 +22,12 @@ const verifyToken = (req, res, next) => {
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
 
-      //en esta parte deberia agregar el refresh token
+      //en esta parte deberia agregar el refresh token,
+
+      //en caso real de que el token sea invalido o haya expirado
+      // deberia intentar refrescarlo mediante el refresh token
       
+      startAutoRefresh();
       // Si el token es inválido o ha expirado, se puede intentar refrescarlo
       
       return res.status(401).json({ error: 'Acceso no autorizado: Token inválido o expirado' });

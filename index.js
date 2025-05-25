@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
-const { startAutoRefresh } = require('./utils/autoRefresh');
+const {startAutoRefresh} = require('./utils/autoRefresh.js'); // Importa la función de auto refresh
 const { registrarHistorial } = require('./microservicio-historial');
 
 const pool = require('./db/db.js')
@@ -74,7 +74,7 @@ app.post('/login', authenticateUser, async (req, res) => {
       message: 'Autenticación exitosa',
       
     },
-    startAutoRefresh(),
+    startAutoRefresh()  //testeando la function de refresh token
 
   );
 
@@ -147,9 +147,6 @@ app.listen(PORT, () => {
   //llamo a la functon de auto refresh unos minutos antes de que expire el token
    
 });
-
-
-
 
 
 

@@ -9,6 +9,7 @@ async function getRefreshToken(username) {
 
 
 async function startAutoRefresh() {
+  console.log('Iniciando tarea programada para renovar accessToken...');
   setInterval(async () => {
     try {
       const username = process.env.AUTH_USERNAME;
