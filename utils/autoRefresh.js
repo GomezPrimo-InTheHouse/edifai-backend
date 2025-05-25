@@ -1,78 +1,39 @@
-// utils/autoRefresh.js
-const fetch = require('node-fetch'); 
+
 const axios = require('axios');
-// Función que inicia la tarea automática cada 55 minutos
-// function startAutoRefresh() {
-//   setInterval(async () => {
-//     try {
-//       const response = await fetch('http://localhost:6000/refresh', {
-//         method: 'POST',
-//         credentials: 'include', // Importante para enviar cookies
-//         headers: { 'Content-Type': 'application/json' },
-//         // No enviamos el body manualmente, las cookies irán en la cabecera automáticamente
-//       });
+const pool = require('../db/db.js'); 
 
-//       if (response.ok) {
-//         const data = await response.json();
-//         console.log('✅ AccessToken renovado automáticamente:', data.accessToken);
-//       } else {
-//         console.log('⚠️ Error al renovar el token automáticamente');
-//       }
+async function getRefreshToken(username) {
+  const { rows } = await pool.query('SELECT refresh_token FROM tokens WHERE username = $1', [username]);
+  return rows[0]?.refresh_token;
+}
 
-//     } catch (error) {
-//       console.error('Error en tarea programada:', error);
-//     }
-//   }, 55 * 60 * 1000); // cada 55 minutos
-// }
 
-function startAutoRefresh() {
-  let contador = 0;
-  const intervalo = 8 // 55 minutos en ms
-  const intervaloMinutos = 1 * 60 * 1000; // 1 minuto en ms
-  let minutosRestantes = intervalo / 60000; // Convertir a minutos
-
-  console.log(`⏳ Comenzando tarea de auto-refresh (cada ${minutosRestantes} min)`);
-
-  // Mostrar contador cada minuto
-  const tickMinuto = setInterval(() => {
-    minutosRestantes--;
-    if (minutosRestantes > 0) {
-      console.log(`🕒 Quedan ${minutosRestantes} minutos para el próximo refresh...`);
-    }
-  }, intervaloMinutos);
-
-  // Ejecutar la tarea cada 55 minutos
-  const tarea = setInterval(async () => {
+async function startAutoRefresh() {
+  setInterval(async () => {
     try {
-      
-      
+      const username = process.env.AUTH_USERNAME;
 
-      // const response = await axios.post('http://localhost:6000/refresh', {}, {
-      //   withCredentials: true, // Esto es lo que incluye las cookies grabadas en el login.
-      //   headers: { 'Content-Type': 'application/json' }
-      // });
+      const refreshToken = await getRefreshToken(username);
 
-      const response = await axios.post('http://localhost:6000/refresh', {
-        refreshToken: refreshToken
-      }, {
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ AccessToken renovado automáticamente:', data.accessToken);
-      } else {
-        console.log('⚠️ Error al renovar el token automáticamente');
+      if (!refreshToken) {
+        console.error('No se encontró el refreshToken en la base de datos');
+        return;
       }
 
-    } catch (error) {
-      console.error('Error en tarea programada:', error);
-    }
+      const response = await axios.post('http://localhost:6000/refresh', { refreshToken });
 
-    // Reiniciar el contador
-    minutosRestantes = intervalo / 60000;
-  }, intervalo);
+      const newAccessToken = response.data.accessToken;
+
+      // Actualizar accessToken en la base
+      await pool.query('UPDATE tokens SET access_token = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2', [newAccessToken, username]);
+
+      console.log('✅ AccessToken renovado automáticamente:', newAccessToken);
+    } catch (error) {
+      console.error('Error en tarea programada:', error.response?.data || error.message);
+    }
+  }, 1 * 60 * 1000); // cada 10 minutos
 }
+
 
 
 

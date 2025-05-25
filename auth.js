@@ -1,7 +1,8 @@
 // auth.js
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
+const { registrarHistorial } = require('./microservicio-historial');
+const pool = require('./db/db.js');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Verificamosssss el token JWT
@@ -16,7 +17,9 @@ const verifyToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
+
       //en esta parte deberia agregar el refresh token
+      
       // Si el token es inválido o ha expirado, se puede intentar refrescarlo
       
       return res.status(401).json({ error: 'Acceso no autorizado: Token inválido o expirado' });
@@ -28,19 +31,30 @@ const verifyToken = (req, res, next) => {
 };
 
 // Generamos el Token JWT
+
 const generateToken = (user) => {
 
 
-  return jwt.sign(user, JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign(user, JWT_SECRET, { expiresIn: '10m' });
 
 
 };
 
 // Middleware de autenticación básica para login que podemos pasarlo en el body
-const authenticateUser = (req, res, next) => {
+const authenticateUser = async (req, res, next) => {
   const { username, password } = req.body;
-  
+
+
+      
   if (!username || !password) {
+
+    await registrarHistorial({
+        username:'no proporcionado',
+        accion: 'login',
+        estado: 'error',
+        mensaje: 'Usuario no encontrado o pass incorrecta'
+      });
+
     return res.status(400).json({ error: 'El nombre de usuario y la contraseña son requeridos' });
   }
 
@@ -48,6 +62,22 @@ const authenticateUser = (req, res, next) => {
   const validUsername = process.env.AUTH_USERNAME;
   const validPassword = process.env.AUTH_PASSWORD;
 
+  if (validPassword !== password) {
+      await registrarHistorial({
+        username,
+        accion: 'login',
+        estado: 'error',
+        mensaje: 'Contraseña incorrecta'
+      });
+      }
+        if (validUsername !== username) {
+      await registrarHistorial({
+        username,
+        accion: 'login',
+        estado: 'error',
+        mensaje: 'Usuario distinto o incorrecta'
+      });
+      }
   if (username === validUsername && password === validPassword) {
     req.user = { username };
     next();

@@ -3,8 +3,9 @@ const axios = require('axios');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const { startAutoRefresh } = require('./utils/autoRefresh');
+const { registrarHistorial } = require('./microservicio-historial');
 
-const cookieParser = require('cookie-parser');
+const pool = require('./db/db.js')
 
 const { verifyToken, generateToken, authenticateUser, generateRefreshToken } = require('./auth');
 
@@ -18,7 +19,7 @@ const refreshTokens = [];
 // Middleware
 app.use(express.json());
 
-app.use(cookieParser());
+
 
 
 // Middleware de registro (logging)
@@ -36,57 +37,63 @@ app.use((err, req, res, next) => {
 // Rutas
 
 
-app.post('/login', authenticateUser, (req, res) => {
+app.post('/login', authenticateUser, async (req, res) => {
+  const username = req.user.username;
   try {
-    //que expire en 10 minutos
-    const token = generateToken({ username: req.user.username },{ expiresIn:'10m' });
+    // expire en 10 minutoss
+    const accessToken = generateToken({ username: req.user.username },{ expiresIn:'10m' });
     const refreshToken = generateRefreshToken({ username: req.user.username },{ expiresIn: '24h' });
 
-    // Almacenar el refresh token en un array o base de datos
-    // refreshTokens.push(refreshToken);
-    
 
-    // Grabanmdo las cookies con los tokens, tanto los de access como el token de reshresh
-    // las busco en postman, parte inferior derecha.
-   
-    // res.cookie('accessToken', token, {
-    //   httpOnly: true,
-    //   secure: true, 
-    //   maxAge: 10 * 60 * 1000, // 10m hora en ms ??
-    //   sameSite: 'Strict'
-    // });
+// Guarda o actualiza el access_token y el resresh_token en la base de datos
+   const query = `
+      INSERT INTO tokens (username, access_token, refresh_token)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (username) DO UPDATE SET
+        access_token = EXCLUDED.access_token,
+        refresh_token = EXCLUDED.refresh_token,
+        updated_at = CURRENT_TIMESTAMP;
+    `;
 
-    // res.cookie('refreshToken', refreshToken, {
-    //   httpOnly: true,
-    //   secure: true,
-    //   maxAge: 24 * 60 * 60 * 1000, // 24 horas en ms
-    //   sameSite: 'Strict'
-    // });
 
-  
+   await pool.query(query, [username, accessToken, refreshToken]);
 
+    // Registro y hago uso del microservicio de historial de login
+   await registrarHistorial({
+        username,
+        accion: 'login',
+        estado: 'exito',
+        mensaje: 'Usuario inició sesión correctamente'
+      });
 
     res.json({ 
-      token,
+      accessToken,
       expiresTokenIn: '10m',
       refreshToken,
       expiresRefreshTokenIn: '24hr',
       message: 'Autenticación exitosa',
       
     },
-    startAutoRefresh()
+    startAutoRefresh(),
+
   );
 
   
     
   } catch (error) {
+
+   
     console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error al generar el token' });
+    res.status(500).json({ error: 'Error al generar el token' }
+      
+    );
   }
 });
 
 app.get('/sum', verifyToken, async (req, res) => {
   try {
+
+
     // Realizar solicitud al microservicio de números
     const response = await axios.get(NUM_SERVICE_URL);
     const { num1, num2 } = response.data;
@@ -99,8 +106,24 @@ app.get('/sum', verifyToken, async (req, res) => {
       user: req.user.username,
       timestamp: new Date().toISOString()
     });
+
+
+    const username = process.env.AUTH_USERNAME;
+    await registrarHistorial({
+        username,
+        accion: 'suma',
+        estado: 'exito',
+        mensaje: 'Usuario utilizo endp de suma correctamente'
+      });
+
   } catch (error) {
     console.error('Error al obtener números aleatorios:', error);
+     await registrarHistorial({
+        username,
+        accion: 'suma',
+        estado: 'error',
+        mensaje: 'Usuario utilizo endp de suma con error'
+      });
     res.status(500).json({ error: 'Error al realizar la operación de suma' });
   }
 });
@@ -127,50 +150,37 @@ app.listen(PORT, () => {
 
 
 
-// app.post('/refresh', async (req, res) => {
-//   const { refreshToken } = req.body; //entra el token de refresh por el body
-
-//   if (!refreshToken) {
-//     return res.status(400).json({ message: 'Refresh Token requerido' });
-//   }
-
-  
-
-//   try {
-//     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-
-//     const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    
-//     return res.json({ accessToken: newAccessToken });
-
-//   } catch (error) {
-//     console.error(error);
-//     return res.status(403).json({ message: 'Refresh Token inválido o expirado' });
-//   }
-// });
 
 
-app.post('/refresh', (req, res) => {
-  const refreshToken = req.body.refreshToken;
 
+
+app.post('/refresh', async (req, res) => {
+   const { refreshToken } = req.body; // o usa req.headers['authorization'] si prefieres
 
   if (!refreshToken) {
     return res.status(400).json({ message: 'Refresh Token requerido' });
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-    const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Verificar JWT
+    const decoded = jwt.verify(refreshToken,  process.env.JWT_SECRET);
 
-    res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: true,
-      maxAge: 10 * 60 * 1000, // 1 hora en ms
-      sameSite: 'Strict'
-    });
+    const username = decoded.username;
 
-    return res.json({ accessToken: newAccessToken });
+    // Buscar el refreshToken en la base de datos
+    const result = await pool.query('SELECT refresh_token FROM tokens WHERE username = $1', [username]);
+
+    if (!result.rows[0] || result.rows[0].refresh_token !== refreshToken) {
+      return res.status(403).json({ message: 'Refresh Token no válido o no coincide' });
+    }
+
+    // Generar nuevo AccessToken
+    const newAccessToken = jwt.sign({ username },  process.env.JWT_SECRET , { expiresIn: '15m' });
+
+    // Actualizar accessToken en la DB
+    await pool.query('UPDATE tokens SET access_token = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2', [newAccessToken, username]);
+
+    res.json({ accessToken: newAccessToken });
 
   } catch (error) {
     console.error(error);
@@ -178,16 +188,13 @@ app.post('/refresh', (req, res) => {
   }
 });
 
+app.post('/create-user', async (req, res) => {
+  const { name, password, role } = req.body;
 
-app.post('/create-user', async(req,res)=>{
-  const {name, password, role} = req.body
+  const allowedRoles = process.env.ROLE.split(','); // ['admin', 'user']
 
-  //sumarle timestamp
-  console.log(name, password, role)
-  const allowedRoles = process.env.ROLE.split(',');  // ['admin', 'user']
-  console.log(allowedRoles)
-  
   try {
+    // Validar campos requeridos
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({
         success: false,
@@ -198,29 +205,33 @@ app.post('/create-user', async(req,res)=>{
     if (!name || !password || !role) {
       return res.status(400).json({
         success: false,
-        error: 'usuario, contraseña o rol no proporcionado'
+        error: 'Usuario, contraseña o rol no proporcionado'
       });
     }
 
-    
+    // Insertar en la base de datos
+    const query = `
+      INSERT INTO users (name, password, role)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, role, created_at;
+    `;
+    const values = [name, password, role]; // luego cambiar password por hash
 
-    return res.status(200).json({
-      succes:true,
-      
-      error:'Nuevo usuario creado',
-      user:{
-        name,
-        role,
-        
-      }
-    })
+    const result = await pool.query(query, values); // asumiendo que tienes pool configurado
+
+    const user = result.rows[0];
+
+    return res.status(201).json({
+      success: true,
+      message: 'Nuevo usuario creado',
+      user
+    });
+
   } catch (error) {
-    return res.status(400).json({
-      succes:false,
-      message:error,
-      error:'Error al crear un nuevo user'
-    })
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error al crear un nuevo usuario'
+    });
   }
-
-
 });
