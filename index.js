@@ -38,7 +38,8 @@ app.use((err, req, res, next) => {
 
 app.post('/login', authenticateUser, (req, res) => {
   try {
-    const token = generateToken({ username: req.user.username },{ expiresIn: '1h' });
+    //que expire en 10 minutos
+    const token = generateToken({ username: req.user.username },{ expiresIn:'10m' });
     const refreshToken = generateRefreshToken({ username: req.user.username },{ expiresIn: '24h' });
 
     // Almacenar el refresh token en un array o base de datos
@@ -48,29 +49,35 @@ app.post('/login', authenticateUser, (req, res) => {
     // Grabanmdo las cookies con los tokens, tanto los de access como el token de reshresh
     // las busco en postman, parte inferior derecha.
    
-    res.cookie('accessToken', token, {
-      httpOnly: true,
-      secure: true, 
-      maxAge: 60 * 60 * 1000, // 1 hora en ms
-      sameSite: 'Strict'
-    });
+    // res.cookie('accessToken', token, {
+    //   httpOnly: true,
+    //   secure: true, 
+    //   maxAge: 10 * 60 * 1000, // 10m hora en ms ??
+    //   sameSite: 'Strict'
+    // });
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 horas en ms
-      sameSite: 'Strict'
-    });
+    // res.cookie('refreshToken', refreshToken, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   maxAge: 24 * 60 * 60 * 1000, // 24 horas en ms
+    //   sameSite: 'Strict'
+    // });
+
+  
 
 
     res.json({ 
       token,
-      expiresTokenIn: '1hr',
+      expiresTokenIn: '10m',
       refreshToken,
       expiresRefreshTokenIn: '24hr',
       message: 'Autenticación exitosa',
       
-    });
+    },
+    startAutoRefresh()
+  );
+
+  
     
   } catch (error) {
     console.error('Error en login:', error);
@@ -115,7 +122,7 @@ app.get('/info', verifyToken, (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor API corriendo en http://localhost:${PORT}`);
   //llamo a la functon de auto refresh unos minutos antes de que expire el token
-   startAutoRefresh();
+   
 });
 
 
@@ -145,7 +152,8 @@ app.listen(PORT, () => {
 
 
 app.post('/refresh', (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
+  const refreshToken = req.body.refreshToken;
+
 
   if (!refreshToken) {
     return res.status(400).json({ message: 'Refresh Token requerido' });
@@ -158,7 +166,7 @@ app.post('/refresh', (req, res) => {
     res.cookie('accessToken', newAccessToken, {
       httpOnly: true,
       secure: true,
-      maxAge: 60 * 60 * 1000, // 1 hora en ms
+      maxAge: 10 * 60 * 1000, // 1 hora en ms
       sameSite: 'Strict'
     });
 

@@ -27,7 +27,7 @@ const axios = require('axios');
 
 function startAutoRefresh() {
   let contador = 0;
-  const intervalo = 55 * 60 * 1000; // 55 minutos en ms
+  const intervalo = 8 // 55 minutos en ms
   const intervaloMinutos = 1 * 60 * 1000; // 1 minuto en ms
   let minutosRestantes = intervalo / 60000; // Convertir a minutos
 
@@ -44,10 +44,18 @@ function startAutoRefresh() {
   // Ejecutar la tarea cada 55 minutos
   const tarea = setInterval(async () => {
     try {
+      
+      
+
+      // const response = await axios.post('http://localhost:6000/refresh', {}, {
+      //   withCredentials: true, // Esto es lo que incluye las cookies grabadas en el login.
+      //   headers: { 'Content-Type': 'application/json' }
+      // });
+
       const response = await axios.post('http://localhost:6000/refresh', {
-        method: 'POST',
-        credentials: 'include', // Importante para enviar cookies
-        headers: { 'Content-Type': 'application/json' },
+        refreshToken: refreshToken
+      }, {
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (response.ok) {
