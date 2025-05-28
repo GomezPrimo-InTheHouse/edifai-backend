@@ -3,7 +3,7 @@ import { EspecialidadController } from '../../controllers/especialidad.cotroller
 
 const router = Router();
 
-router.post('/especialidades', EspecialidadController.create);
-router.get('/especialidades', EspecialidadController.getAll);
+router.post('/create', EspecialidadController.create);
+router.get('/getAll', EspecialidadController.getAll);
 
 export default router;
