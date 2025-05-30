@@ -22,9 +22,9 @@ const verifyToken = (req, res, next) => {
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
 
-      //en esta parte deberia agregar el refresh token,
+      // en esta parte deberia agregar el refresh token,
 
-      //en caso real de que el token sea invalido o haya expirado
+      // en caso real de que el token sea invalido o haya expirado
       // deberia intentar refrescarlo mediante el refresh token
       
       startAutoRefresh();
