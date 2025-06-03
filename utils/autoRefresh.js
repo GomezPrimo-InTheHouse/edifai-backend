@@ -3,7 +3,7 @@ const axios = require('axios');
 const pool = require('../db/db.js'); 
 
 async function getRefreshToken(username) {
-  const { rows } = await pool.query('SELECT refresh_token FROM tokens WHERE username = $1', [username]);
+  const { rows } = await pool.query('SELECT refresh_token FROM sesiones WHERE username = $1', [username]);
   return rows[0]?.refresh_token;
 }
 
@@ -26,7 +26,7 @@ async function startAutoRefresh() {
       const newAccessToken = response.data.accessToken;
 
       // Actualizar accessToken en la base
-      await pool.query('UPDATE tokens SET access_token = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2', [newAccessToken, username]);
+      await pool.query('UPDATE sesiones SET access_token = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2', [newAccessToken, username]);
 
       console.log('✅ AccessToken renovado automáticamente:', newAccessToken);
     } catch (error) {
