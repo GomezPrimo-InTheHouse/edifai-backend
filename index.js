@@ -2,7 +2,7 @@ const express = require('express');
 
 require('dotenv').config();
 
-const authRoute = require('./ms-auth.js');
+const authRoute = require('./microservices/ms-auth.js');
 
 
 const app = express();
@@ -32,7 +32,7 @@ app.use(express.json());
 
 // Rutas
 
-app.use('/auth', authRoute);
+// app.use('/auth', authRoute);
 
 // app.post('/login', authenticateUser, async (req, res) => {
 //   const username = req.user.username;

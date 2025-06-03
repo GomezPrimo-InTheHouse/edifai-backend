@@ -1,6 +1,6 @@
 
 const axios = require('axios');
-const pool = require('../db/db.js'); 
+const pool = require('../../db/db.js'); 
 
 async function getRefreshToken(username) {
   const { rows } = await pool.query('SELECT refresh_token FROM sesiones WHERE username = $1', [username]);
