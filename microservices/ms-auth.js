@@ -1,4 +1,4 @@
-const pool = require('./db/db.js'); 
+const pool = require('../db/db.js'); 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const express = require('express');
@@ -27,7 +27,7 @@ app.post('/register', async (req, res) => {
         const password_hash = await bcrypt.hash(password, 10);
 
         // Validar que el email no esté ya registrado
-        const user = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+        const user = await pool.query(`SELECT * FROM usuarios WHERE email = $1`, [email]);
         //si encuentra un usuario con el mismo email, retorna un error
         if (user.rows.length > 0) {
           return res.status(400).json({ message: 'El email ya está registrado' });
