@@ -1,11 +1,12 @@
-const pool = require('../db');
+const pool = require('../../db/db.js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const speakeasy = require('speakeasy');
 
 require('dotenv').config();
 
-const loginConTOTP = async (req, res) => {
+const login = async (req, res) => {
+  console.log('Login request received:', req.user);
   const { user } = req; // viene desde el middleware basicAuth
   const { totp } = req.body;
 
@@ -58,4 +59,4 @@ const loginConTOTP = async (req, res) => {
   }
 };
 
-module.exports = { loginConTOTP };
+module.exports = { login };
