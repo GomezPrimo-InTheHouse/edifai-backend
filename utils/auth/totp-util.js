@@ -9,23 +9,22 @@ const qrterminal = require('qrcode-terminal');
  * @returns {Promise<{ otpauth_url: string, base32: string, qrImage: string }>}
  */
 
-const generarTotp = async (userEmail) => {
+
+function generarTotp(email) {
   const secret = speakeasy.generateSecret({
-    name: `Eventos (${userEmail})`, // aparece así en la app
+    name: `Eventos (${email})`, 
   });
 
-  // Generar código QR en terminal
-  qrterminal.generate(secret.otpauth_url, { small: true });
+  return secret; // Contiene { ascii, hex, base32, otpauth_url }
+}
 
-  // Generar QR en base64 para enviar al frontend (opcional)
-  const qrImage = await qrcode.toDataURL(secret.otpauth_url);
+async function generarQRCodeTerminal(otpauth_url) {
+  qrterminal.generate(otpauth_url, { small: true });
+}
 
-  return {
-    otpauth_url: secret.otpauth_url,
-    base32: secret.base32,
-    qrImage,
-  };
-};
+async function generarQRCodeDataURL(otpauth_url) {
+  return await qrcode.toDataURL(otpauth_url);
+}
 
 /**
  * Verifica un código TOTP contra el secret base32
@@ -39,4 +38,8 @@ const verificarTotp = (token, base32Secret) => {
   });
 };
 
-module.exports = { generarTotp, verificarTotp };
+module.exports = { 
+  generarTotp, 
+  verificarTotp, 
+  generarQRCodeTerminal,
+  generarQRCodeDataURL };
