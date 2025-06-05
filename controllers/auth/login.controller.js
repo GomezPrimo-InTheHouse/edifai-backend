@@ -1,4 +1,4 @@
-const pool = require('../../db/db.js');
+const pool = require('../../connection/db.js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const speakeasy = require('speakeasy');
@@ -12,7 +12,7 @@ const login = async (req, res) => {
 
   try {
     // Buscar el usuario completo (incluye seed y rol)
-    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [user.email]);
+    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1 AND estado_id = 1', [user.email]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
@@ -46,10 +46,11 @@ const login = async (req, res) => {
     );
 
     // Guardar sesión
+    const estadoSesionActivaId = 1;
     await pool.query(`
-      INSERT INTO sesiones (usuario_id, access_token, refresh_token)
-      VALUES ($1, $2, $3)
-    `, [usuario.id, accessToken, refreshToken]);
+      INSERT INTO sesiones (usuario_id, access_token, refresh_token, estado_id)
+      VALUES ($1, $2, $3, $4)
+    `, [usuario.id, accessToken, refreshToken, estadoSesionActivaId]);
 
     res.json({ accessToken, refreshToken });
 
@@ -58,5 +59,7 @@ const login = async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
+
+
 
 module.exports = { login };

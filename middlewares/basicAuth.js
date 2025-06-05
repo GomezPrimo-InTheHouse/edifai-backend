@@ -1,4 +1,4 @@
-const pool = require('../db/db.js');
+const pool = require('../connection/db.js');
 const bcrypt = require('bcrypt');
 
 const basicAuth = async (req, res, next) => {
