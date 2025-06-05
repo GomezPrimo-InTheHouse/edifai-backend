@@ -1,7 +1,7 @@
 
 const express = require('express');
 require('dotenv').config();
-const {register} = require('../controllers/auth/register.controller.js');
+const {register, obtenerUsuarios} = require('../controllers/auth/register.controller.js');
 const { login } = require('../controllers/auth/login.controller.js');
 const basicAuth = require('../middlewares/basicAuth.js');
 const { refreshAccessToken } = require('../controllers/auth/authWithRefresh.controller.js');
@@ -33,7 +33,7 @@ app.delete('/deleteUser', darDeBajaUsuario)
 
 app.post('/refresh-token', refreshAccessToken)
 
-
+app.get('/obtenerUsuarios', obtenerUsuarios)
 
 
 app.get('/health', (req, res) => {
