@@ -5,15 +5,15 @@ const { generarTotp, generarQRCodeTerminal, generarQRCodeDataURL } = require('..
 
 const register = async (req, res) => {
   try {
-    const { nombre, email, password, rol } = req.body;
+    const { nombre, email, password, rol} = req.body;
 
     if (!nombre || !email || !password || !rol) {
       return res.status(400).json({ error: 'Faltan nombre, email o password' });
     }
     // Validar rol desde .env o base de datos
-    const rolesPermitidos = process.env.ROLES_PERMITIDOS ? process.env.ROLES_PERMITIDOS.split(',') : ['usuario', 'admin', 'expositor', 'asistente', 'organizador'];
+    const rolesPermitidos = ['usuario', 'admin', 'expositor', 'asistente', 'organizador'];
     if (!rolesPermitidos.includes(rol)) {
-      return res.status(400).json({ error: `Rol inválido. Roles permitidos: ${rolesPermitidos.join(', ')}` });
+      return res.status(400).json({ error: `Rol inválido. Roles permitidos: ${rolesPermitidos.join(',')}` });
     }
    
     
@@ -39,11 +39,12 @@ const register = async (req, res) => {
     const qrCodeDataURL = await generarQRCodeDataURL(otpauth_url);
 
     // Crear usuario
-    estadoActivoId = 1; // Asumimos que el estado activo es 1
+    estadoActivoId = 1; // El estado activo es 1
+
     const result = await pool.query(`
-      INSERT INTO usuarios (rol, nombre, email, password_hash, totp_seed, creado_en, estado_activo_id)
+      INSERT INTO usuarios (rol, nombre, email, password_hash, totp_seed, creado_en, estado_id)
       VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-      RETURNING id, nombre, email, rol, creado_en
+      RETURNING id, nombre, email, rol, creado_en, estado_id
     `, [rol, nombre, email, password_hash, totp_seed, estadoActivoId]);
 
     return res.status(201).json({
@@ -58,4 +59,15 @@ const register = async (req, res) => {
   }
 };
 
-module.exports = { register };
+
+//obtener todos los usuarios
+const obtenerUsuarios = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM usuarios WHERE estado_id = 1');
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener usuarios:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+module.exports = { register, obtenerUsuarios };
