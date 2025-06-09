@@ -1,13 +1,15 @@
-
 const express = require('express');
+
 require('dotenv').config();
+const app = express();
+
 const {register, obtenerUsuarios} = require('../controllers/auth/register.controller.js');
 const { login } = require('../controllers/auth/login.controller.js');
-const basicAuth = require('../middlewares/basicAuth.js');
 const { refreshAccessToken } = require('../controllers/auth/authWithRefresh.controller.js');
 const { logout } = require('../controllers/auth/logout.controller.js');
 const { darDeBajaUsuario } = require('../controllers/auth/deleteUser.controller.js');
-const app = express();
+
+const basicAuth = require('../middlewares/basicAuth.js');
 
 const PORT =  7001;
 

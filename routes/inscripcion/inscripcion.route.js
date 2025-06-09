@@ -16,4 +16,4 @@ router.post('/inscribir', inscribirParticipante);
 router.post('/validarQR', validarQR)
 
 // Exportar el router para que pueda ser utilizado en otros archivos
-module.exports = router; // Exportar el router para que pueda ser utilizado en otros archivos
+module.exports = router; 
