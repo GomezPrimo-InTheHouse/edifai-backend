@@ -1,5 +1,5 @@
 const pool = require('../../connection/db.js');
-
+const axios = require('axios')
 
 
 // Validación de solapamiento
@@ -189,19 +189,11 @@ const modificarActividad = async (req, res) => {
     
     // verificar si hay algun expositor que en el nuevo horario, tiene otra actividad asociada
     const expositoresConActividad = await verificarExpositoresConActividadEnHorario({ fecha, hora_inicio, sala_id, expositores_ids, actividad_id: actividadId });
-    console.log(expositoresConActividad)
+    console.log(expositoresConActividad )
     if (expositoresConActividad ){
-          return res.status(409).json({ error: 'Conflicto detected: expositor ocupado en el horario .' });
+          return res.status(400).json({ error: 'Conflicto detected: expositor ocupado en el horario .' });
     }
-       // Actualizar la actividad
-    // await pool.query(
-    //   `UPDATE actividades 
-    //    SET titulo = $1, descripcion = $2, fecha = $3, hora_inicio = $4, hora_fin = $5, duracion_estimada = $6, 
-    //        estado_id = $7, evento_id = $8, sala_id = $9, actualizado_en = NOW()
-    //    WHERE id = $9`,
-    //   [titulo, descripcion, fecha, duracion_estimada, hora_inicio, hora_fin, estado_id, evento_id, sala_id]
-    // );
-
+    
     await pool.query(
       `UPDATE actividades 
       SET titulo = $1, descripcion = $2, fecha = $3, hora_inicio = $4, hora_fin = $5, duracion_estimada = $6, 
@@ -224,6 +216,21 @@ const modificarActividad = async (req, res) => {
     );
     await Promise.all(inserts);
 
+    //aca llamo la funcion de enviarNotificacionModificacionActividad (actividad_id) 
+
+
+    try {
+
+    await axios.post('http://localhost:7005/notificacion/enviarNotificacionModificacionActividad', {
+      actividad_id: actividadId
+    });
+
+    console.log('Notificacionn enviada al micreoservices de notificaciones');
+
+  } catch (err) {
+
+    console.error('Error al enviar notificación al microservicio:', err.message);
+  }
     return res.status(200).json({ mensaje: 'Actividad modificada exitosamente' });
 
   } catch (err) {
@@ -254,9 +261,11 @@ const verActividades = async (req, res) => {
     const actividadesConExpositores = result.rows.map(actividad =>
       ({
         ...actividad,
-        expositores: expositores.rows
-          .filter(expositor => expositor.actividad_id === actividad.id)
+
+        expositores:  expositores.rows
+          .filter(expositor => expositor.actividad_id  === actividad.id)
           .map(expositor => ({
+            
             id: expositor.usuario_id,
             nombre: expositor.nombre
           }))

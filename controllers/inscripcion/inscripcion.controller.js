@@ -42,6 +42,8 @@ const registrarParticipante = async (req, res) =>{
 }
 
 
+
+// dado un particiapnte ya inscripto, procedo a inscribirlo a un evento creado
 const inscribirParticipante = async (req, res) => {
   const { participante_id, evento_id, tipo_inscripcion } = req.body;
 
