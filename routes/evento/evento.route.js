@@ -15,21 +15,32 @@ const {verificarConflictoDeEvento} = require('../../middlewares/evento/verificar
 
 
 // Registrar un nuevo evento
+//Explicacion de la ruta /register
+// Esta ruta permite a los usuarios con rol de 'admin' u 'organizador' registrar un nuevo evento en el sistema.
+// Se aplican varios middlewares para validar la información del evento antes de ser registrado.
 router.post('/register', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento, 
 verificarSalaExiste, verificarEstadoExiste, 
 verificarUbicacionExiste, 
 verificarConflictoDeEvento, registerarEvento);
 
 // Modificar un evento existente
+// Explicacion de la ruta /modificar/:id
+// Esta ruta permite a los usuarios con rol de 'admin' u 'organizador' modificar un evento existente en el sistema.
 router.put('/modificar/:id', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento,
 verificarSalaExiste, verificarEstadoExiste,
 verificarUbicacionExiste,
 verificarConflictoDeEvento, modificarEvento);
 
 // Dar de baja un evento
+// Explicacion de la ruta /delete/:id
+// Esta ruta permite a los usuarios con rol de 'admin' dar de baja un evento existente en el sistema.
+//Solo modifica el estado del evento
 router.post('/delete/:id', autorizacionDeRoles('admin') , bajaDeEvento);
 
 // Buscar eventos
+// Explicacion de la ruta /getAll
+// Esta ruta permite a los usuarios con rol de 'admin', 'organizador' o 'usuario' buscar eventos en el sistema.
+
 router.get('/getAll', buscarEventos)
 
 

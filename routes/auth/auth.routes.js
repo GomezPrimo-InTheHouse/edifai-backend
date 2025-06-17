@@ -22,8 +22,10 @@ const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.j
 //       { expiresIn: '1h' }
 //     );
 
-router.post('/register', autorizacionDeRoles('admin'), register);
 
+//Explicacion de la ruta /register en README.md
+router.post('/register', autorizacionDeRoles('admin'), register);
+//Explicacion de la ruta /login en README.md
 router.post('/login', basicAuth, login)
 
 router.post('/logout', logout) 
