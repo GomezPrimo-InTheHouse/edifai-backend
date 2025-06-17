@@ -66,41 +66,7 @@ const modificarEvento = async (req,res) =>{
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
-    // // Validación: la fecha de inicio es anterior a la fecha de fin?
-    // if (new Date(fecha_inicio_evento) >= new Date(fecha_fin_evento)) {
-    //     return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
-    // }
-
-    // // Validación: la sala existe?
-    // const salaExiste = await pool.query('SELECT * FROM salas WHERE id = $1', [sala_id]);
-    // if (salaExiste.rows.length === 0) {
-    //     return res.status(404).json({ error: 'Sala no encontrada' });
-    // }
-    // // Validación: el estado existe?
-    // const estadoExiste = await pool.query('SELECT * FROM estado WHERE id = $1', [estado_id]);
-    // if (estadoExiste.rows.length === 0) {
-    //     return res.status(404).json({ error: 'Estado no encontrado' });
-    // }
-    // // Validación: la ubicación existe?
-    // const ubicacionExiste = await pool.query('SELECT * FROM ubicacion WHERE id = $1', [ubicacion_id]);
-    // if (ubicacionExiste.rows.length === 0) {
-    //     return res.status(404).json({ error: 'Ubicación no encontrada' });
-    // }
-
-    // // Validación: ya existe un evento en esta sala con mismo rango?
-    // const conflicto = await pool.query(`
-    //     SELECT * FROM eventos 
-    //     WHERE sala_id = $1 
-    //     AND id != $2
-    //     AND fecha_inicio_evento = $3
-    //     AND fecha_fin_evento = $4
-    // `, [sala_id, id, fecha_inicio_evento, fecha_fin_evento]);
-    // if (conflicto.rows.length > 0) {
-    //     return res.status(400).json({
-    //         error: 'Ya existe un evento con estas fechas en la misma sala'
-    //     });
-    // }
-
+    
 
     try {
         const reslt = await pool.query(`
