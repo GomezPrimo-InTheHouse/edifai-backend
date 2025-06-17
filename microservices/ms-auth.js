@@ -21,26 +21,14 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// refactorizar el  codigo adicionandole una carpeta para las rutas.
-// aqui solo deberia ir un app.use('/api/auth', require('./routes/auth.routes.js'));
 
 
-app.post('/register', register);
+app.use('/auth', require('../routes/auth/auth.routes.js'));
 
-app.post('/login', basicAuth , login)
-
-app.post('/logout', logout) 
-
-app.delete('/deleteUser', darDeBajaUsuario) 
-
-app.post('/refresh-token', refreshAccessToken)
-
-app.get('/obtenerUsuarios', obtenerUsuarios)
-
-
-app.get('/health', (req, res) => {
+// coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
+app.get('/health', (_req, res) => {
   res.json({
-    service: 'Microservicio de números aleatorios',
+    service: 'Microservicio de autenticación',
     status: 'healthy',
     timestamp: new Date().toISOString()
   });

@@ -7,7 +7,6 @@ app = express();
 const PORT = process.env.PORT_EVENTO || 7002;
 
 const eventoRoute = require('../routes/evento/evento.route.js');
-
 //esto es un log para la consola...
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Microservicio de registro de eventos`);
@@ -23,7 +22,7 @@ app.use(express.json());
 app.use('/evento', eventoRoute)
 
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     service: 'Microservicio de Eventos',
     status: 'healthy',

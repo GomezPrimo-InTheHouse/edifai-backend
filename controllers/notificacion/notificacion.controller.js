@@ -138,9 +138,7 @@ async function enviarRecordatorioProximoDia() {
 }
 
 
-const notificacionPorCierreDeActividad = async() => {
 
-}
 
 
 
@@ -148,7 +146,7 @@ const notificacionPorCierreDeActividad = async() => {
 module.exports = {
     
     enviarRecordatorioProximoDia,
-    notificacionPorCierreDeActividad,
+   
     enviarNotificacionModificacionActividad
 
 }

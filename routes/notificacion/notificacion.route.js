@@ -4,9 +4,8 @@ const {enviarRecordatorioProximoDia,
     notificacionPorCierreDeActividad,
     enviarNotificacionModificacionActividad, } =  require('../../controllers/notificacion/notificacion.controller.js')
 
-// router.post('/enviarRecordatorioProximoDia', enviarRecordatorioProximoDia)
-// router.post('/notificacionPorCierreDeActividad', notificacionPorCierreDeActividad)
-router.post('/enviarNotificacionModificacionActividad', enviarNotificacionModificacionActividad)
+router.post('/recordatorio', enviarRecordatorioProximoDia)
+router.post('/alertaModificacion', enviarNotificacionModificacionActividad)
 
 
 
