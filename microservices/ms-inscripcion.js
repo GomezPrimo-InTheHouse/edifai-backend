@@ -14,6 +14,7 @@ app.use((req, res, next) => {
 
 app.use('/inscripcion', inscripcionRoute)
 
+
 app.listen(PORT, () => {
     console.log(`Microservicio de Inscripción corriendo en http://localhost:${PORT}`);
     }

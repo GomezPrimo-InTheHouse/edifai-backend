@@ -279,8 +279,32 @@ const verActividades = async (req, res) => {
   }
 }
 
+// ver actividades por id de expositor
+const verActividadesPorExpositor = async (req, res) => {
+  const expositorId = req.params.id;
+
+  try {
+    const actividades = await pool.query(`
+      SELECT a.*, u.nombre AS expositor_nombre
+      FROM actividades a
+      JOIN actividad_expositores ae ON a.id = ae.actividad_id
+      JOIN usuarios u ON ae.usuario_id = u.id
+      WHERE ae.usuario_id = $1`, [expositorId]);
+
+    if (actividades.rows.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron actividades para este expositor' });
+    }
+
+    return res.status(200).json(actividades.rows);
+  } catch (err) {
+    console.error('Error al obtener actividades por expositor:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
     registrarActividad,
     modificarActividad,
-    verActividades
+    verActividades,
+    verActividadesPorExpositor
 };

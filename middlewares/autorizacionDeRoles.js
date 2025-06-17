@@ -1,4 +1,4 @@
-const pool = require('../../connection/db.js');
+const pool = require('../connection/db.js');
 const jwt = require('jsonwebtoken');
 
 
@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 // - **Administradores**: Acceso total al sistema
 
 const autorizacionDeRoles = (...rolesPermitidos) => {
+  
   return (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -44,26 +45,24 @@ const autorizacionDeRoles = (...rolesPermitidos) => {
 
 
 
-const verificarEventoExistente = async (req, res, next) => {
-  const { nombre } = req.body;
+// const verificarEventoExistente = async (req, res, next) => {
+//   const { nombre } = req.body;
 
-  try {
-    const result = await pool.query('SELECT * FROM eventos WHERE nombre = $1', [nombre]);
+//   try {
+//     const result = await pool.query('SELECT * FROM eventos WHERE nombre = $1', [nombre]);
 
-    if (result.rows.length > 0) {
-      return res.status(409).json({ error: 'El evento ya existe.' });
-    }
+//     if (result.rows.length > 0) {
+//       return res.status(409).json({ error: 'El evento ya existe.' });
+//     }
 
-    next();
-  } catch (error) {
-    console.error('Error al verificar evento existente:', error);
-    return res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
+//     next();
+//   } catch (error) {
+//     console.error('Error al verificar evento existente:', error);
+//     return res.status(500).json({ error: 'Error interno del servidor' });
+//   }
+// };
 
 
 module.exports = {
-  
-  verificarEventoExistente,
   autorizacionDeRoles
 };

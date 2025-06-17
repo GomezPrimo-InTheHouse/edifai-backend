@@ -63,7 +63,7 @@ const register = async (req, res) => {
 //obtener todos los usuarios
 const obtenerUsuarios = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM usuarios WHERE estado_id = 1');
+    const result = await pool.query('SELECT * FROM usuarios');
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error al obtener usuarios:', error);

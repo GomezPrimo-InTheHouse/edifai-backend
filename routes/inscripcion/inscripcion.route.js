@@ -5,13 +5,13 @@ const {
     inscribirParticipante,
     validarQR
 } = require('../../controllers/inscripcion/inscripcion.controller.js');
-
+const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.js');
 // Registrar una inscripción
 
 
-router.post('/registrar', registrarParticipante);
+router.post('/registrar',autorizacionDeRoles('asistente','admin','organizador'), registrarParticipante);
 // Inscribir un participante a un evento
-router.post('/inscribir', inscribirParticipante);
+router.post('/inscribir',autorizacionDeRoles('asistente','admin','organizador') ,inscribirParticipante);
 
 router.post('/validarQR', validarQR)
 

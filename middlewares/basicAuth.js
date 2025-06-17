@@ -34,4 +34,4 @@ const basicAuth = async (req, res, next) => {
   }
 };
 
-module.exports = basicAuth;
+module.exports = {basicAuth};

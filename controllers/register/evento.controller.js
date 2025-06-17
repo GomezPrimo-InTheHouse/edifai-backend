@@ -1,28 +1,58 @@
 const pool = require('../../connection/db.js');
 
 const registerarEvento = async (req, res)=>{
-    const {nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad} = req.body;
+const {
+    nombre,
+    fecha_inicio_evento,
+    fecha_fin_evento,
+    descripcion,
+    estado_id,
+    ubicacion_id,
+    sala_id,
+    capacidad
+  } = req.body;
 
+  try {
+    // Validación: ¿ya existe un evento en esta sala con mismo rango?
+    const conflicto = await pool.query(`
+      SELECT * FROM eventos 
+      WHERE sala_id = $1 
+      AND fecha_inicio_evento = $2
+      AND fecha_fin_evento = $3
+    `, [sala_id, fecha_inicio_evento, fecha_fin_evento]);
 
-    if (!nombre || !fecha_inicio_evento || !fecha_fin_evento || !descripcion || !estado_id || !ubicacion_id || !capacidad) {
-        return res.status(400).json({ error: 'Faltan datos requeridos' });
+    if (conflicto.rows.length > 0) {
+      return res.status(400).json({
+        error: 'Ya existe un evento con estas fechas en la misma sala'
+      });
     }
-    try {
 
-        const reslt = await pool.query(`
-            INSERT INTO eventos (nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad
-        `, [nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad]);
-        return res.status(201).json({
-            evento: reslt.rows[0],
-            message: 'Evento registrado correctamente'
-        });
+    // Si no hay conflictos, se inserta
+    const nuevoEvento = await pool.query(`
+      INSERT INTO eventos 
+      (nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, sala_id, capacidad)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *;
+    `, [
+      nombre,
+      fecha_inicio_evento,
+      fecha_fin_evento,
+      descripcion,
+      estado_id,
+      ubicacion_id,
+      sala_id,
+      capacidad
+    ]);
 
+    res.status(201).json({
+      mensaje: 'Evento creado correctamente',
+      evento: nuevoEvento.rows[0]
+    });
 
-    } catch (error) {
-        return res.status(500).json({ error: 'Error interno del servidorrr' });
-    }
+  } catch (error) {
+    console.error('Error al crear evento:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 
 
 }
@@ -30,19 +60,55 @@ const registerarEvento = async (req, res)=>{
 const modificarEvento = async (req,res) =>{
     const {id} = req.params;
 
-    const {nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad} = req.body;
+    const {nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad, sala_id} = req.body;
 
     if (!nombre || !fecha_inicio_evento || !fecha_fin_evento || !descripcion || !estado_id || !ubicacion_id || !capacidad) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
+    // // Validación: la fecha de inicio es anterior a la fecha de fin?
+    // if (new Date(fecha_inicio_evento) >= new Date(fecha_fin_evento)) {
+    //     return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
+    // }
+
+    // // Validación: la sala existe?
+    // const salaExiste = await pool.query('SELECT * FROM salas WHERE id = $1', [sala_id]);
+    // if (salaExiste.rows.length === 0) {
+    //     return res.status(404).json({ error: 'Sala no encontrada' });
+    // }
+    // // Validación: el estado existe?
+    // const estadoExiste = await pool.query('SELECT * FROM estado WHERE id = $1', [estado_id]);
+    // if (estadoExiste.rows.length === 0) {
+    //     return res.status(404).json({ error: 'Estado no encontrado' });
+    // }
+    // // Validación: la ubicación existe?
+    // const ubicacionExiste = await pool.query('SELECT * FROM ubicacion WHERE id = $1', [ubicacion_id]);
+    // if (ubicacionExiste.rows.length === 0) {
+    //     return res.status(404).json({ error: 'Ubicación no encontrada' });
+    // }
+
+    // // Validación: ya existe un evento en esta sala con mismo rango?
+    // const conflicto = await pool.query(`
+    //     SELECT * FROM eventos 
+    //     WHERE sala_id = $1 
+    //     AND id != $2
+    //     AND fecha_inicio_evento = $3
+    //     AND fecha_fin_evento = $4
+    // `, [sala_id, id, fecha_inicio_evento, fecha_fin_evento]);
+    // if (conflicto.rows.length > 0) {
+    //     return res.status(400).json({
+    //         error: 'Ya existe un evento con estas fechas en la misma sala'
+    //     });
+    // }
+
+
     try {
         const reslt = await pool.query(`
             UPDATE eventos
-            SET nombre = $1, fecha_inicio_evento = $2, fecha_fin_evento = $3, descripcion = $4, estado_id = $5, ubicacion_id = $6, capacidad = $8
-            WHERE id = $7
-            RETURNING id, nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad
-        `, [nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, id, capacidad]);
+            SET nombre = $1, fecha_inicio_evento = $2, fecha_fin_evento = $3, descripcion = $4, estado_id = $5, ubicacion_id = $6, sala_id = $7, capacidad = $8
+            WHERE id = $9
+            RETURNING id, nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, capacidad,sala_id
+        `, [nombre, fecha_inicio_evento, fecha_fin_evento, descripcion, estado_id, ubicacion_id, sala_id, capacidad, id]);
 
         if (reslt.rows.length === 0) {
             return res.status(404).json({ error: 'Evento no encontrado' });
