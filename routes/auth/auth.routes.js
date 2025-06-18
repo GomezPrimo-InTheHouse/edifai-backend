@@ -28,13 +28,14 @@ router.post('/register', autorizacionDeRoles('admin'), register);
 //Explicacion de la ruta /login en README.md
 router.post('/login', basicAuth, login)
 
+router.post('/refresh-token', refreshAccessToken)
+
 router.post('/logout', logout) 
 
 router.post('/darDeBaja/:id', autorizacionDeRoles('admin'), darDeBajaUsuario)
 
 
 
-router.post('/refresh-token', refreshAccessToken)
 
 router.get('/obtenerUsuarios', obtenerUsuarios)
 

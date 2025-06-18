@@ -3,7 +3,8 @@ const router = express.Router();
 const {
     registrarParticipante,
     inscribirParticipante,
-    validarQR
+    verParticipantes,
+    getAllTiposInscripcion
 } = require('../../controllers/inscripcion/inscripcion.controller.js');
 const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.js');
 // Registrar una inscripción
@@ -12,8 +13,9 @@ const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.j
 router.post('/registrar',autorizacionDeRoles('asistente','admin','organizador'), registrarParticipante);
 // Inscribir un participante a un evento
 router.post('/inscribir',autorizacionDeRoles('asistente','admin','organizador') ,inscribirParticipante);
+router.get('/tipos-inscripcion', getAllTiposInscripcion)
+router.get('/verParticipantes', verParticipantes);
 
-router.post('/validarQR', validarQR)
 
 // Exportar el router para que pueda ser utilizado en otros archivos
 module.exports = router; 

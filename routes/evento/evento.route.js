@@ -1,10 +1,10 @@
 express = require('express');
 const router = express.Router();
-const { registerarEvento, modificarEvento, bajaDeEvento, buscarEventos } = require('../../controllers/register/evento.controller.js');
+const { registrarEvento, modificarEvento, bajaDeEvento, buscarEventos } = require('../../controllers/register/evento.controller.js');
 const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.js');
 
 const {validarFechasEvento} = require('../../middlewares/evento/validarFecha');
-const {verificarSalaExiste} = require('../../middlewares/evento/verificarSalaExistente.js');
+
 const {verificarEstadoExiste} = require('../../middlewares/evento/verificarEstadoExistente');
 const {verificarUbicacionExiste} = require('../../middlewares/evento/verificarUbicacionExistente.js');
 const {verificarConflictoDeEvento} = require('../../middlewares/evento/verificarConfictoEvento.js');
@@ -18,16 +18,14 @@ const {verificarConflictoDeEvento} = require('../../middlewares/evento/verificar
 //Explicacion de la ruta /register
 // Esta ruta permite a los usuarios con rol de 'admin' u 'organizador' registrar un nuevo evento en el sistema.
 // Se aplican varios middlewares para validar la información del evento antes de ser registrado.
-router.post('/register', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento, 
-verificarSalaExiste, verificarEstadoExiste, 
+router.post('/register', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento, verificarEstadoExiste, 
 verificarUbicacionExiste, 
-verificarConflictoDeEvento, registerarEvento);
+verificarConflictoDeEvento, registrarEvento);
 
 // Modificar un evento existente
 // Explicacion de la ruta /modificar/:id
 // Esta ruta permite a los usuarios con rol de 'admin' u 'organizador' modificar un evento existente en el sistema.
-router.put('/modificar/:id', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento,
-verificarSalaExiste, verificarEstadoExiste,
+router.put('/modificar/:id', autorizacionDeRoles('admin', 'organizador'), validarFechasEvento, verificarEstadoExiste,
 verificarUbicacionExiste,
 verificarConflictoDeEvento, modificarEvento);
 
