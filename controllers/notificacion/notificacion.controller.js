@@ -5,6 +5,7 @@ const { enviarCorreo } = require('../../utils/notificacion/send-email.util.js')
 
 
 const enviarNotificacionModificacionActividad = async (req, res) => {
+  console.log('Iniciando notificación de modificación de actividad');
   const { actividad_id } = req.body;
 
   try {
@@ -46,7 +47,7 @@ const enviarNotificacionModificacionActividad = async (req, res) => {
       ...participantesRes.rows
     ];
     
-    console.log(destinatarios)
+    // console.log(destinatarios)
 
     //mapeo el array y filtro por email
 
@@ -72,7 +73,11 @@ const enviarNotificacionModificacionActividad = async (req, res) => {
     await enviarCorreo({ destinatarios: emails, asunto, mensaje });
 
     console.log('Notificación enviada con éxito');
-    return res.status(200).json({ mensaje: 'Notificación enviada con éxito' });
+    return res.status(200).json({ 
+      mensaje: 'Notificación enviada con éxito',
+      expositores: expositoresRes.rows, 
+      participantes: participantesRes.rows
+    });
 
   } catch (error) {
     console.error('Error al enviar notificación de modificación:', error);

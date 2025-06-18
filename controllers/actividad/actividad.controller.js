@@ -221,7 +221,7 @@ const modificarActividad = async (req, res) => {
 
     try {
 
-    await axios.post('http://localhost:7005/notificacion/enviarNotificacionModificacionActividad', {
+    await axios.post('http://localhost:7005/notificacion/alertaModificacion', {
       actividad_id: actividadId
     });
 
