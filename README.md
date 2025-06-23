@@ -1,6 +1,3 @@
-# Link de PostMan: 
-
-https://web.postman.co/workspace/My-Workspace~1422dc80-c264-4e6c-8d32-a3243de7e33a/folder/17845448-0cc926f6-105a-4df7-85fb-8fd292818a14?action=share&source=copy-link&creator=17845448&ctx=documentation
 
 # Link de del diagrama de la base de datos:
 
