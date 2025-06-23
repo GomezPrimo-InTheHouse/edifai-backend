@@ -7,8 +7,12 @@ const { autorizacionDeRoles } = require('../../../middlewares/autorizacionDeRole
 //  el acceso al endpoint según el rol permitido.
 // Recordando lo que se firma en los tokens:
 
-router.get('/verActividades/:id', autorizacionDeRoles('expositor', 'organizador', 'admin'), verActividades);
-router.get('/verPerfilExpositor/:id', autorizacionDeRoles('expositor', 'organizador', 'admin'), verPerfilExpositor);
+const { autenticacionConRefreshAutomatica } = require('../../../middlewares/autenticacionConRefreshAutomatica.js');
+
+router.get('/verActividades/:id', autenticacionConRefreshAutomatica
+    ,autorizacionDeRoles('expositor', 'organizador', 'admin'), verActividades);
+router.get('/verPerfilExpositor/:id',autenticacionConRefreshAutomatica,
+     autorizacionDeRoles('expositor', 'organizador', 'admin'), verPerfilExpositor);
 
 // Exportar el router para que pueda ser utilizado en otros archivos
 module.exports = router;
