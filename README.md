@@ -162,5 +162,134 @@ Las sesiones se eliminan automáticamente si el refreshToken está comprometido 
 El accessToken renovado tiene una vida útil corta (15 minutos), lo que permite un control más fino sobre la seguridad de las sesiones.
 
 
+# Script SQL para la creacion de tablas:
+
+```sql
+-- Tabla estado
+CREATE TABLE estado (
+id SERIAL PRIMARY KEY,
+nombre VARCHAR(50) UNIQUE NOT NULL,
+descripcion TEXT
+);
+
+-- Tabla usuarios
+CREATE TABLE usuarios (
+id SERIAL PRIMARY KEY,
+nombre VARCHAR(100) NOT NULL,
+email VARCHAR(100) UNIQUE NOT NULL,
+password_hash TEXT NOT NULL,
+rol VARCHAR(30) NOT NULL,
+totp_seed TEXT,
+estado_id INTEGER REFERENCES estado(id),
+creado_en TIMESTAMP DEFAULT NOW(),
+actualizado_en TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla sesiones
+CREATE TABLE sesiones (
+id SERIAL PRIMARY KEY,
+usuario_id INTEGER REFERENCES usuarios(id),
+access_token TEXT NOT NULL,
+refresh_token TEXT NOT NULL,
+creado_en TIMESTAMP DEFAULT NOW(),
+actualizado_en TIMESTAMP DEFAULT NOW(),
+estado_id INTEGER REFERENCES estado(id)
+);
+
+-- Tabla ubicacion
+CREATE TABLE ubicacion (
+id SERIAL PRIMARY KEY,
+nombre TEXT,
+localidad VARCHAR(100),
+provincia VARCHAR(100),
+descripcion TEXT
+);
+
+-- Tabla eventos
+CREATE TABLE eventos (
+id SERIAL PRIMARY KEY,
+nombre VARCHAR(100) NOT NULL,
+descripcion TEXT,
+capacidad INT,
+fecha_inicio_evento DATE NOT NULL,
+fecha_fin_evento DATE NOT NULL,
+ubicacion_id INTEGER REFERENCES ubicacion(id),
+estado_id INTEGER REFERENCES estado(id),
+creado_en TIMESTAMP DEFAULT NOW(),
+actualizado_en TIMESTAMP
+);
+
+-- Tabla participantes
+CREATE TABLE participantes (
+id SERIAL PRIMARY KEY,
+nombre VARCHAR(100) NOT NULL,
+apellido VARCHAR(100) NOT NULL,
+email VARCHAR(100) UNIQUE NOT NULL,
+telefono VARCHAR(20),
+creado_en TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla tipo_inscripcion
+CREATE TABLE tipo_inscripcion (
+id SERIAL PRIMARY KEY,
+nombre TEXT,
+tarifa INT
+);
+
+-- Tabla inscripciones
+CREATE TABLE inscripciones (
+id SERIAL PRIMARY KEY,
+participante_id INTEGER REFERENCES participantes(id),
+evento_id INTEGER REFERENCES eventos(id),
+tipo_tarifa_id INTEGER REFERENCES tipo_inscripcion(id),
+ingreso_registrado BOOLEAN DEFAULT FALSE,
+qr_code TEXT,
+estado_id INTEGER REFERENCES estado(id),
+creado_en TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla notificacion
+CREATE TABLE notificacion (
+id SERIAL PRIMARY KEY,
+destinatarioId INTEGER REFERENCES usuarios(id),
+mensaje TEXT,
+fechaEnvio TIMESTAMP,
+tipo VARCHAR,
+estadoId INTEGER REFERENCES estado(id)
+);
+
+-- Tabla salas
+CREATE TABLE salas (
+id SERIAL PRIMARY KEY,
+nombre VARCHAR,
+ubicacion VARCHAR,
+capacidad INT
+);
+
+-- Tabla actividades
+CREATE TABLE actividades (
+id SERIAL PRIMARY KEY,
+titulo VARCHAR,
+descripcion TEXT,
+fecha TIMESTAMP,
+duracion_estimada INT,
+hora_inicio TEXT,
+hora_fin TEXT,
+estado_id INTEGER REFERENCES estado(id),
+evento_id INTEGER REFERENCES eventos(id),
+sala_id INTEGER REFERENCES salas(id),
+creado_en TIMESTAMP,
+actualizado_en TIMESTAMP
+);
+
+-- Tabla actividad_expositores
+CREATE TABLE actividad_expositores (
+id SERIAL PRIMARY KEY,
+actividad_id INTEGER NOT NULL REFERENCES actividades(id),
+usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+UNIQUE (actividad_id, usuario_id)
+);
+```
+
 
 
