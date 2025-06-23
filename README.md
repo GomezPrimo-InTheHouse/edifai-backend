@@ -1,17 +1,10 @@
-# refresh-token
+# Link de PostMan: 
 
+https://web.postman.co/workspace/My-Workspace~1422dc80-c264-4e6c-8d32-a3243de7e33a/folder/17845448-0cc926f6-105a-4df7-85fb-8fd292818a14?action=share&source=copy-link&creator=17845448&ctx=documentation
 
-# env 
-# AUTH_USERNAME=JULIAN
-# AUTH_PASSWORD=1234
-# JWT_SECRET=supersecret
+# Link de del diagrama de la base de datos:
 
-
-# PGUSER=postgres
-# PGPASSWORD=1995
-# PGHOST=localhost
-# PGPORT=5433
-#### PGDATABASE=refresh-token
+https://dbdiagram.io/d/Eventos-nro-2-68419717ba2a4ac57bfe7800
 
 # 📝 Explicación del proceso de registro de usuarios
 El sistema cuenta con una ruta RESTful POST /auth/register que permite registrar nuevos usuarios de forma segura, validada y lista para autenticación en dos pasos (2FA). A continuación se detalla el flujo completo del registro.
