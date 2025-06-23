@@ -40,4 +40,4 @@ const autenticacionConRefreshAutomatica = async (req, res, next) => {
   }
 };
 
-module.exports = autenticacionConRefreshAutomatica;
+module.exports = {autenticacionConRefreshAutomatica};

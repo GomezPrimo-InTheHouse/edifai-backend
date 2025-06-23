@@ -142,7 +142,7 @@ Se responde con 403 Refresh token inválido o expirado.
 
 Si el refreshToken es válido:
 
-Se genera un nuevo accessToken válido por 15 minutos (expiresIn: '1h').
+Se genera un nuevo accessToken válido por 60 minutos (expiresIn: '1h').
 
 Se actualiza la sesión en la base de datos con el nuevo token y el timestamp actual.
 
@@ -160,6 +160,175 @@ Los refreshTokens están firmados con una clave secreta y se almacenan en la bas
 Las sesiones se eliminan automáticamente si el refreshToken está comprometido o caducado.
 
 El accessToken renovado tiene una vida útil corta (15 minutos), lo que permite un control más fino sobre la seguridad de las sesiones.
+
+
+
+## rutas de eventos 
+
+📥 Registrar un nuevo evento
+Ruta: POST /register
+Descripción: Permite a los usuarios con rol admin o organizador registrar un nuevo evento en el sistema.
+Middlewares aplicados:
+
+autorizacionDeRoles('admin', 'organizador'): Permite solo usuarios con estos roles.
+
+validarFechasEvento: Verifica que las fechas del evento sean válidas.
+
+verificarEstadoExiste: Valida que el estado del evento exista en el sistema.
+
+verificarUbicacionExiste: Verifica que la ubicación indicada esté registrada.
+
+verificarConflictoDeEvento: Asegura que no haya eventos en conflicto en la misma fecha y ubicación.
+
+📝 Modificar un evento existente
+Ruta: PUT /modificar/:id
+Descripción: Permite a usuarios con rol admin o organizador modificar un evento existente en el sistema (identificado por id).
+Middlewares aplicados:
+
+autorizacionDeRoles('admin', 'organizador')
+
+validarFechasEvento
+
+verificarEstadoExiste
+
+verificarUbicacionExiste
+
+verificarConflictoDeEvento
+
+🗑 Dar de baja un evento
+Ruta: POST /delete/:id
+Descripción: Permite a usuarios con rol admin dar de baja (desactivar) un evento existente.
+Importante: Esta ruta no elimina el evento, solo modifica su estado para marcarlo como inactivo o eliminado lógicamente.
+Middlewares aplicados:
+
+autorizacionDeRoles('admin')
+
+🔍 Buscar eventos
+Ruta: GET /getAll
+Descripción: Permite a usuarios con rol admin, organizador o usuario consultar los eventos registrados en el sistema.
+
+
+## rutas de registro de actividad a los eventos
+
+🔒 Middleware: autenticacionConRefreshAutomatica
+Este middleware:
+
+Valida el AccessToken proporcionado por el cliente (en el header Authorization: Bearer <token>).
+
+Si el AccessToken está expirado pero el RefreshToken es válido, automáticamente genera un nuevo AccessToken y continúa la ejecución.
+
+Si ambos tokens no son válidos, deniega el acceso al endpoint con un error 401 o 403 según el caso.
+
+📥 Registrar una nueva actividad
+Ruta: POST /registrar
+Descripción: Permite a usuarios con rol organizador o admin registrar una nueva actividad.
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica: Verifica el token y lo refresca si es necesario.
+
+autorizacionDeRoles('organizador', 'admin'): Permite solo esos roles.
+
+verificarSalaExiste: Valida que la sala especificada para la actividad exista en el sistema.
+
+📝 Editar una actividad existente
+Ruta: PUT /editar/:id
+Descripción: Permite a usuarios con rol organizador o admin modificar los datos de una actividad existente (identificada por id).
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica
+
+autorizacionDeRoles('organizador', 'admin')
+
+🔍 Ver todas las actividades
+Ruta: GET /verActividades
+Descripción: Permite a usuarios con rol organizador o admin consultar todas las actividades registradas en el sistema.
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica
+
+autorizacionDeRoles('organizador', 'admin')
+
+🔍 Ver actividades por expositor
+Ruta: GET /verActividadPorExpositor/:id
+Descripción: Permite a usuarios con rol expositor, organizador o admin consultar las actividades asociadas a un expositor específico (identificado por id).
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica
+
+autorizacionDeRoles('expositor', 'organizador', 'admin')
+
+## visualizacion de los datos de expositores:
+
+🔍 Ver actividades de un expositor
+Ruta: GET /verActividades/:id
+Descripción: Permite a usuarios con rol expositor, organizador o admin consultar las actividades vinculadas al expositor identificado por id.
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica: Verifica y refresca el token JWT si es necesario.
+
+autorizacionDeRoles('expositor', 'organizador', 'admin'): Restringe el acceso a usuarios con estos roles.
+
+🧑‍💼 Ver perfil de un expositor
+Ruta: GET /verPerfilExpositor/:id
+Descripción: Permite a usuarios con rol expositor, organizador o admin consultar el perfil de un expositor específico (identificado por id).
+Middlewares aplicados:
+
+autenticacionConRefreshAutomatica: Valida el token JWT y realiza refresh si corresponde.
+
+autorizacionDeRoles('expositor', 'organizador', 'admin'): Restringe el acceso a los roles indicados.
+
+## rutas de inscripcion de participantes a las actividades
+
+📝 Registrar un participante
+Ruta: POST /registrar
+Descripción: Permite a usuarios con rol asistente, organizador o admin registrar un nuevo participante en el sistema.
+Middlewares aplicados:
+
+autorizacionDeRoles('asistente', 'admin', 'organizador'): Verifica que el usuario tenga uno de estos roles antes de permitir el registro.
+
+📝 Inscribir un participante a un evento
+Ruta: POST /inscribir
+Descripción: Permite a usuarios con rol asistente, organizador o admin inscribir un participante previamente registrado a un evento.
+Middlewares aplicados:
+
+autorizacionDeRoles('asistente', 'admin', 'organizador')
+
+🔍 Obtener los tipos de inscripción
+Ruta: GET /tipos-inscripcion
+Descripción: Devuelve el listado de los diferentes tipos de inscripción disponibles en el sistema (por ejemplo: estándar, VIP, gratuita).
+Middlewares aplicados:
+
+Ninguno. Esta ruta es pública y no requiere autenticación ni autorización de roles.
+
+🔍 Ver participantes registrados
+Ruta: GET /verParticipantes
+Descripción: Permite consultar el listado de los participantes registrados en el sistema.
+Middlewares aplicados:
+
+Ninguno. Esta ruta es pública y no requiere autenticación ni autorización de roles.
+
+
+
+## rutas de notificaciones
+
+POST /recordatorio
+Descripción: Envía un recordatorio a todos los usuarios vinculados a un evento o actividad, específicamente para notificarles que un evento o actividad ocurrirá próximamente (por ejemplo, el día siguiente).
+
+Uso: Se ejecuta al momento de que se quiere recordar a los participantes acerca de eventos o actividades próximas, ayudando a mejorar la asistencia y el compromiso.
+
+
+Respuesta: Indica si el envío del recordatorio fue exitoso o si hubo algún error.
+
+POST /alertaModificacion
+
+Descripción: Envía una notificación a todos los usuarios afectados por la modificación de una actividad o evento, para informarles de los cambios realizados (horarios, lugares, expositores, etc).
+
+Uso: Se ejecuta inmediatamente después de que una actividad o evento ha sido modificado para mantener a todos los participantes y usuarios informados sobre las novedades.
+
+Datos esperados:  actividad_id
+
+Respuesta: Confirma que la notificación fue enviada o reporta errores en el proceso.
+
 
 
 # Script SQL para la creacion de tablas:
