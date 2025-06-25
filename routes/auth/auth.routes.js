@@ -24,7 +24,7 @@ const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.j
 
 
 //Explicacion de la ruta /register en README.md
-router.post('/register', autorizacionDeRoles('admin'), register);
+router.post('/register', register);
 //Explicacion de la ruta /login en README.md
 router.post('/login', basicAuth, login)
 

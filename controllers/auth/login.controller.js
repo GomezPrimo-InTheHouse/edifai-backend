@@ -8,7 +8,7 @@ require('dotenv').config();
 const login = async (req, res) => {
   console.log('Login request received:', req.user);
   const { user } = req; // viene desde el middleware basicAuth
-  const { totp } = req.body; // esto debería venir en el body del request, se utiliza authenticator de Google.
+  const { totp } = req.body; // codigo totp: esto debería venir en el body del request, se utiliza authenticator de Google.
 
   try {
     // Buscar el usuario completo (incluye seed y rol)

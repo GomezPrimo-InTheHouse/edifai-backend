@@ -1,27 +1,27 @@
 const express = require('express');
-
 require('dotenv').config();
+
 const app = express();
 
+const PORT = process.env.PORT_TRABAJADOR || 7003;
 
-const PORT =  7001;
 
 //esto es un log para la consola...
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Microservicio de Autenticación`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Microservicio de trabajadores`);
   next();
 });
 
 app.use(express.json());
 
 
-
-app.use('/auth', require('../routes/auth/auth.routes.js'));
+app.use('/especialidad', require('../routes/especialidad/especialidad.routes.js'));
+// app.use('/trabajador', require('../routes/usuario/userRol/user.rou tes.js'));
 
 // coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
 app.get('/health', (_req, res) => {
   res.json({
-    service: 'Microservicio de autenticación',
+    service: 'Microservicio de trabajadores',
     status: 'healthy',
     timestamp: new Date().toISOString()
   });
@@ -29,5 +29,5 @@ app.get('/health', (_req, res) => {
 
 // Iniciar el servidor
 app.listen(PORT, () => {
-  console.log(`Microservicio de auth corriendo en http://localhost:${PORT}`);
+  console.log(`Microservicio de trabajadores corriendo en http://localhost:${PORT}`);
 });

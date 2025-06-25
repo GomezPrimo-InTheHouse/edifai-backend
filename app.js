@@ -6,7 +6,8 @@ const path = require('path');
 // el nombre debe ser el mismo que el archivo del microservicio
 const services = [
   { name: 'ms-auth.js', port: 7001 },
-
+  { name: 'ms-usuario.js', port: 7002 },
+  { name: 'ms-trabajadores.js', port: 7003 },
 ];
 
 services.forEach(service => {
