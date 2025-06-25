@@ -12,7 +12,7 @@ const qrterminal = require('qrcode-terminal');
 
 function generarTotp(email) {
   const secret = speakeasy.generateSecret({
-    name: `Eventos (${email})`, 
+    name: `Edifai: (${email})`, 
   });
 
   return secret; // Contiene { ascii, hex, base32, otpauth_url }

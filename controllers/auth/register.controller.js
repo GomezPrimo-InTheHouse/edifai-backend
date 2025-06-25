@@ -9,7 +9,7 @@ const register = async (req, res) => {
     const { nombre, email, password, rol_id} = req.body;
 
     if (!nombre || !email || !password || !rol_id) {
-      return res.status(400).json({ error: 'Faltan nombre, email o password' });
+      return res.status(400).json({ error: 'Faltan nombre, email, password o rol id' });
     }
     
 
@@ -21,7 +21,6 @@ const register = async (req, res) => {
       return res.status(400).json({ error: 'Rol no válido' });
     }
    
-    
 
     // Verificar si ya existe un usuario con ese email
     const existente = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
@@ -47,9 +46,9 @@ const register = async (req, res) => {
     estadoActivoId = 1; // El estado activo es 1
 
     const result = await pool.query(`
-      INSERT INTO usuarios (rol_id, nombre, email, password_hash, totp_seed, creado_en, estado_id)
+      INSERT INTO usuarios (rol_id, nombre, email, password_hash, totp_seed, created_at, estado_id)
       VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-      RETURNING id, nombre, email, rol_id, creado_en, estado_id
+      RETURNING id, nombre, email, rol_id, created_at, estado_id
     `, [rol_id, nombre, email, password_hash, totp_seed, estadoActivoId]);
 
     return res.status(201).json({
