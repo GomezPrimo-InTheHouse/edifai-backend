@@ -24,7 +24,7 @@ const autorizacionDeRoles = (...rolesPermitidos) => {
     const token = authHeader.split(' ')[1];
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
       const userRole = decoded.rol;
 
       if (!rolesPermitidos.includes(userRole)) {

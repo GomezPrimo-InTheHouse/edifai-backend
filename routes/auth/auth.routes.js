@@ -35,8 +35,6 @@ router.post('/logout', logout)
 router.post('/darDeBaja/:id', autorizacionDeRoles('admin'), darDeBajaUsuario)
 
 
-
-
 router.get('/obtenerUsuarios', obtenerUsuarios)
 
 

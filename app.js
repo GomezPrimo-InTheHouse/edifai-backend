@@ -1,12 +1,12 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
+//aca voy agregando los microservicios que quiero iniciar
+// cada uno con su nombre y puerto correspondiente
+// el nombre debe ser el mismo que el archivo del microservicio
 const services = [
   { name: 'ms-auth.js', port: 7001 },
-  { name: 'ms-evento.js', port: 7002 },
-  { name: 'ms-inscripcion.js', port: 7003 },
-  { name: 'ms-actividad.js', port: 7004 },
-  { name: 'ms-notificacion.js', port: 7005 }
+
 ];
 
 services.forEach(service => {
