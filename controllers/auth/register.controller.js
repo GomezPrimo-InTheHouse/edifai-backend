@@ -3,17 +3,22 @@ const pool = require('../../connection/db.js');
 const bcrypt = require('bcrypt');
 const { generarTotp, generarQRCodeTerminal, generarQRCodeDataURL } = require('../../utils/auth/totp-util.js');
 
+
 const register = async (req, res) => {
   try {
-    const { nombre, email, password, rol} = req.body;
+    const { nombre, email, password, rol_id} = req.body;
 
-    if (!nombre || !email || !password || !rol) {
+    if (!nombre || !email || !password || !rol_id) {
       return res.status(400).json({ error: 'Faltan nombre, email o password' });
     }
-    // Validar rol desde .env o base de datos
-    const rolesPermitidos = ['usuario', 'admin', 'expositor', 'asistente', 'organizador'];
-    if (!rolesPermitidos.includes(rol)) {
-      return res.status(400).json({ error: `Rol inválido. Roles permitidos: ${rolesPermitidos.join(',')}` });
+    
+
+    // Validar rol_id
+    const rol = await pool.query('SELECT * FROM roles WHERE id = $1', [
+      rol_id
+    ]);
+    if (rol.rows.length === 0) {
+      return res.status(400).json({ error: 'Rol no válido' });
     }
    
     
@@ -42,10 +47,10 @@ const register = async (req, res) => {
     estadoActivoId = 1; // El estado activo es 1
 
     const result = await pool.query(`
-      INSERT INTO usuarios (rol, nombre, email, password_hash, totp_seed, creado_en, estado_id)
+      INSERT INTO usuarios (rol_id, nombre, email, password_hash, totp_seed, creado_en, estado_id)
       VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-      RETURNING id, nombre, email, rol, creado_en, estado_id
-    `, [rol, nombre, email, password_hash, totp_seed, estadoActivoId]);
+      RETURNING id, nombre, email, rol_id, creado_en, estado_id
+    `, [rol_id, nombre, email, password_hash, totp_seed, estadoActivoId]);
 
     return res.status(201).json({
       user: result.rows[0],
@@ -70,4 +75,64 @@ const obtenerUsuarios = async (req, res) => {
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
-module.exports = { register, obtenerUsuarios };
+
+
+//obtener usuarios por id 
+const obtenerUsuarioPorId = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error al obtener usuario por ID:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+//modificar usuario (tomando su id como parametro)
+const modificarUsuario = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, email, password, rol_id } = req.body;
+  try {
+    // Verificar si el usuario existe
+    const usuarioExistente = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    if (usuarioExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Validar rol_id
+    const rol = await pool.query('SELECT * FROM roles WHERE id = $1', [rol_id]);
+    if (rol.rows.length === 0) {
+      return res.status(400).json({ error: 'Rol no válido' });
+    }
+
+    // Hashear la nueva contraseña si se proporciona
+    let password_hash = null;
+    if (password) {
+      password_hash = await bcrypt.hash(password, 10);
+    }
+
+    // Actualizar el usuario
+    const result = await pool.query(`
+      UPDATE usuarios 
+      SET nombre = $1, email = $2, password_hash = COALESCE($3, password_hash), rol_id = $4 
+      WHERE id = $5 
+      RETURNING id, nombre, email, rol_id
+    `, [nombre, email, password_hash, rol_id, id]);
+
+    return res.status(200).json({
+      user: result.rows[0],
+      message: 'Usuario modificado correctamente'
+    });
+
+  } catch (error) {
+    console.error('Error al modificar usuario:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+}
+
+
+module.exports = { register, obtenerUsuarios, obtenerUsuarioPorId, modificarUsuario };

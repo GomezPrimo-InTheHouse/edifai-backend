@@ -106,7 +106,7 @@ const refreshAccessToken = async (req, res) => {
         email: user.email,
         rol: user.rol
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET_KEY,
       { expiresIn: '15m' }
     );
 

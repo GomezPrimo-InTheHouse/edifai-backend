@@ -8,7 +8,7 @@ const autenticacionConRefreshAutomatica = async (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Access token no proporcionado' });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     req.user = decoded;
     return next();
   } catch (error) {
@@ -27,7 +27,7 @@ const autenticacionConRefreshAutomatica = async (req, res, next) => {
       const nuevoAccessToken = response.data.accessToken;
 
       // Verificar el nuevo token y continuar
-      const nuevoDecoded = jwt.verify(nuevoAccessToken, process.env.JWT_SECRET);
+      const nuevoDecoded = jwt.verify(nuevoAccessToken, process.env.JWT_SECRET_KEY);
       req.user = nuevoDecoded;
       req.newAccessToken = nuevoAccessToken;
 
