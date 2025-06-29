@@ -18,25 +18,44 @@ require('dotenv').config();
 // }
 
 
+
+// {
+//   "usuario_id": 1,
+//   "nombre": "Obra Centro Cultural",
+//   "descripcion": "Construcción de un nuevo centro cultural en el barrio norte.",
+//   "ubicacion": "Av. Belgrano 1234, San Martín de los Andes",
+//   "fecha_inicio_estimado": "2025-06-15",
+//   "fecha_fin_estimado": "2025-12-30",
+//   "tipo_obra_id": 2,
+//   "estado_id": 1,
+//  
+// }
+
 //create obras
 const createObra = async (req,res) =>{
     try {
         const {
-            usuario_id, 
+            usuario_id,  // creador de la obra ( llamado en otros abm como creador_id)
             nombre, 
             descripcion, 
             ubicacion, 
-            fecha_fin_estimada, 
-            fecha_inicio_estimada,
-            tipo_obra_id, estado_id} = req.body;
+            fecha_fin_estimado, 
+            fecha_inicio_estimado,
+            tipo_obra_id, 
+            estado_id} = req.body;
 
             //validar datos de la obra
-
-            if(!nombre || !descripcion || !ubicacion || !fecha_fin_estimada || !fecha_inicio_estimada || !tipo_obra_id || !estado_id){
+            if(!nombre || !descripcion || !ubicacion ||
+                 !fecha_fin_estimado || !fecha_inicio_estimado ||
+                  !tipo_obra_id || !estado_id || !usuario_id){
                 return res.status(400).json({message: 'Faltan datos para crear la obra'})
                 }
 
-            
+            //validar usuario id
+            const userResult = await pool.query('Select * FROM usuarios WHERE id = $1', [usuario_id]);
+            if(userResult.rows.length === 0){
+                return res.status(400).json({message: 'El usuario creador no existe'})
+                }
            
 
             //validar tipo de obra id
@@ -44,14 +63,15 @@ const createObra = async (req,res) =>{
             if(tipoObra.rows.length === 0){
                 return res.status(400).json({message: 'Tipo de obra no existente'});
                 }
-                    
+
+                            
 
             const result = await pool.query(`INSERT INTO obras (usuario_id, nombre, descripcion, ubicacion, 
-                fecha_fin_estimada, fecha_inicio_estimada,
+                fecha_fin_estimado, fecha_inicio_estimado,
                 tipo_obra_id, estado_id) 
                 VALUES ($1, $2, $3, $4, $5, $6
-                , $7, $8, $9, $10) RETURNING *`,
-                [usuario_id, nombre, descripcion, ubicacion, fecha_fin_estimada, fecha_inicio_estimada,
+                , $7, $8) RETURNING *`,
+                [usuario_id, nombre, descripcion, ubicacion, fecha_fin_estimado, fecha_inicio_estimado,
                     tipo_obra_id, estado_id]);
             
             return res.status(200).json({
@@ -88,54 +108,104 @@ const getAllObras = async (_req, res) =>{
     }
 }
 
-//modificar obras
 
-    try {
-        const {obra_id} = req.params;
-        const { usuario_id, nombre, descripcion, ubicacion, fecha_inicio_real,
-            fecha_fin_real, fecha_fin_estimada, fecha_inicio_estimada,
-            tipo_obra_id, estado_id} = req.body;
 
-        const result = await pool.query(`
-            UPDATE obras SET usuario_id = $1, nombre = $2, descripcion = $3, 
-            ubicacion = $4, fecha_inicio_real = $5, fecha_fin_real = $6, 
-            fecha_fin_estimada = $7, fecha_inicio_estimada = $8, tipo_obra_id = $9, estado_id
-            = $10 WHERE obra_id = $11 RETURNING *`,
-            [usuario_id, nombre, descripcion, ubicacion, fecha_inicio_real,
-            fecha_fin_real, fecha_fin_estimada, fecha_inicio_estimada,
-            tipo_obra_id, estado_id, obra_id]  );
+//modificar obra 
 
-        res.status(200).json({
-            success: true,
-            message: 'Obra modificada con éxito',
-            obra: result.rows[0]
-        });
+const modifyObra = async (req, res) => {
+  const { id } = req.params;
 
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error al modificar obra',
-            error: error.message
-        });
+  const {
+    usuario_id,
+    nombre,
+    descripcion,
+    ubicacion,
+    fecha_inicio_real,
+    fecha_fin_real,
+    fecha_inicio_estimado,
+    fecha_fin_estimado,
+    tipo_obra_id,
+    estado_id
+  } = req.body;
+
+  try {
+    // Verificar que la obra exista
+    const obraExistente = await pool.query(
+      'SELECT id FROM obras WHERE id = $1',
+      [id]
+    );
+
+    if (obraExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Obra no encontrada' });
     }
+
+    // Validación mínima
+    if (!usuario_id || !nombre) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios (usuario_id o nombre)' });
+    }
+
+    // Actualizar la obra
+    const result = await pool.query(
+      `
+      UPDATE obras
+      SET usuario_id = $1,
+          nombre = $2,
+          descripcion = $3,
+          ubicacion = $4,
+          fecha_inicio_real = $5,
+          fecha_fin_real = $6,
+          fecha_inicio_estimado = $7,
+          fecha_fin_estimado = $8,
+          tipo_obra_id = $9,
+          estado_id = $10
+      WHERE id = $11
+      RETURNING *;
+      `,
+      [
+        usuario_id,
+        nombre,
+        descripcion || null,
+        ubicacion || null,
+        fecha_inicio_real || null,
+        fecha_fin_real || null,
+        fecha_inicio_estimado || null,
+        fecha_fin_estimado || null,
+        tipo_obra_id || null,
+        estado_id || null,
+        id
+      ]
+    );
+
+    return res.status(200).json({
+      obra: result.rows[0],
+      message: 'Obra actualizada correctamente'
+    });
+  } catch (error) {
+    console.error('Error al modificar obra:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 
 
 //dar de baja obra ( no eliminar)
-const darDeBajaObra = async (req, res) => {
-    // Placeholder implementation
-    res.status(501).json({ success: false, message: 'darDeBajaObra no implementado' });
+const deleteObra = async (req, res) => {
+   const { id } = req.params;
+
+   
+
 }
 
 //getObraByID
 const getObraByID = async (req, res) => {
-    // Placeholder implementation
-    res.status(501).json({ success: false, message: 'getObraByID no implementado' });
+   
 }
 
 module.exports = {
     createObra,
     getAllObras,
-    modificarObra,
+    
     darDeBajaObra,
-    getObraByID
+    getObraByID,
+    modifyObra
 }   
