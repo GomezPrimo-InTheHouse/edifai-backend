@@ -26,7 +26,9 @@ const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.j
 //Explicacion de la ruta /register en README.md
 router.post('/register', register);
 //Explicacion de la ruta /login en README.md
-router.post('/login', basicAuth, login)
+router.post('/login', basicAuth, login) 
+
+// hay que crear un middlew para verificar que si es un usuario con rol=trabajador, no solicite el TOTP.
 
 router.post('/refresh-token', refreshAccessToken)
 
