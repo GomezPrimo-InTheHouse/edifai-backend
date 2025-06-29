@@ -6,6 +6,7 @@ const app = express();
 const PORT = process.env.PORT_TRABAJADOR || 7003;
 
 
+
 //esto es un log para la consola...
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Microservicio de trabajadores`);
@@ -16,7 +17,7 @@ app.use(express.json());
 
 
 app.use('/especialidad', require('../routes/especialidad/especialidad.routes.js'));
-// app.use('/trabajador', require('../routes/usuario/userRol/user.rou tes.js'));
+app.use('/trabajador', require('../routes/trabajadores/trabajadores.routes.js'));
 
 // coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
 app.get('/health', (_req, res) => {

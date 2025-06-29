@@ -20,7 +20,7 @@ const register = async (req, res) => {
     if (rol.rows.length === 0) {
       return res.status(400).json({ error: 'Rol no válido' });
     }
-   
+    const nuevoRol = rol.rows[0];
 
     // Verificar si ya existe un usuario con ese email
     const existente = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
@@ -52,7 +52,12 @@ const register = async (req, res) => {
     `, [rol_id, nombre, email, password_hash, totp_seed, estadoActivoId]);
 
     return res.status(201).json({
-      user: result.rows[0],
+      user: {
+        nombre: result.rows[0].nombre,
+        email: result.rows[0].email, 
+        rol: {nombre: nuevoRol.nombre, id: nuevoRol.id}, 
+        created_at: result.rows[0].created_at,
+        estado_id: 'activo'},
       message: 'Usuario registrado correctamente',
       qrCodeDataURL // esto lo podés mostrar en frontend si querés
     });
