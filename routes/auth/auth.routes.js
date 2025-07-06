@@ -10,25 +10,21 @@ const { refreshAccessToken } = require('../../controllers/auth/authWithRefresh.c
 //middlewares
 const { basicAuth } = require('../../middlewares/basicAuth.js');
 const { autorizacionDeRoles } = require('../../middlewares/autorizacionDeRoles.js');
-
-// El middleware de autorizacionDeRoles() revisará el ACCESSTOKEN, decodificará el rol del usuario y permitirá (o denegará)
-//  el acceso al endpoint según el rol permitido.
-// Recordando lo que se firma en los tokens:
-// const accessToken = jwt.sign(
-//       { userId: usuario.id,
-//         email: usuario.email,
-//         rol: usuario.rol },
-//       process.env.JWT_SECRET,
-//       { expiresIn: '1h' }
-//     );
+const validarCreedenciales  = require('../../middlewares/validarCredenciales.js')
+const verificarTotpSiCorresponde = require('../../middlewares/verificarTotpSiCorresponde.js')
 
 
 //Explicacion de la ruta /register en README.md
 router.post('/register', register);
-//Explicacion de la ruta /login en README.md
-router.post('/login', basicAuth, login) 
 
-// hay que crear un middlew para verificar que si es un usuario con rol=trabajador, no solicite el TOTP.
+//1 ) se valida mediante authBasic las credenciales y el rol, luego se pasan a
+//2) verficarTotp para determinar mediante el rol, si es necesatio proporcionarle un TOTP
+// o si no es necesario un TOTP.
+
+
+router.post('/login', validarCreedenciales, verificarTotpSiCorresponde, login) 
+
+
 
 router.post('/refresh-token', refreshAccessToken)
 

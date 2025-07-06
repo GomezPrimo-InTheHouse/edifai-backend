@@ -8,7 +8,9 @@ const services = [
   { name: 'ms-auth.js', port: 7001 },
   { name: 'ms-usuario.js', port: 7002 },
   { name: 'ms-trabajadores.js', port: 7003 },
-  { name: 'ms-obra.js', port: 7004 }
+  { name: 'ms-obra.js', port: 7004 },
+  { name: 'ms-labores.js', port: 7005 },
+  { name: 'ms-estado.js', port: 7006 }
 
 ];
 

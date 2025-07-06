@@ -25,7 +25,7 @@ const login = async (req, res) => {
       secret: usuario.totp_seed,
       encoding: 'base32',
       token: totp,
-      window: 1 // tolerancia de 30 segundos hacia adelante o atrás
+      window: 1 
     });
 
     if (!esValidoTOTP) {
