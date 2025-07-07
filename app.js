@@ -11,7 +11,6 @@ const services = [
   { name: 'ms-obra.js', port: 7004 },
   { name: 'ms-labores.js', port: 7005 },
   { name: 'ms-estado.js', port: 7006 }
-
 ];
 
 services.forEach(service => {

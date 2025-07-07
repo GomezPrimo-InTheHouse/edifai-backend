@@ -90,7 +90,7 @@ const modificarRol = async (req, res) => {
 
 const obtenerRoles = async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM roles');
+        const result = await pool.query('SELECT * FROM roles ORDER BY id');
         return res.status(200).json(result.rows);
     } catch (error) {
         console.error('Error al obtener roles:', error);

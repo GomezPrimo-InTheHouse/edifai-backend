@@ -6,7 +6,7 @@ require('dotenv').config();
 
 const getAllTrabajadores = async (req, res)=>{
     try {
-        const result = await pool.query('SELECT * FROM trabajadores');
+        const result = await pool.query('SELECT * FROM trabajadores ORDER BY id');
         return res.status(200).json(result.rows);
         
     } catch (error) {

@@ -57,15 +57,16 @@ const actualizarEstado = async (req, res) => {
     const existe = await pool.query('SELECT * FROM estados WHERE id = $1', [id]);
     if (existe.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Estado no encontrado' });
+    }else{
+      console.log('estado encontrado')
     }
 
     const result = await pool.query(`
       UPDATE estados
       SET nombre = $1,
           descripcion = $2,
-          ambito = $3,
-          updated_at = NOW()
-      WHERE id = $3
+          ambito = $3
+      WHERE id = $4
       RETURNING *
     `, [nombre, descripcion, ambito, id]);
 
@@ -99,8 +100,8 @@ const eliminarEstado = async (req, res) => {
 
 const getEstadosPorAmbito = async (req, res) => {
     try {
-        const ambito = req.params
-        const result = await pool.query('Select * from estados where ambito = $1 ', [ambito])
+        const {ambito} = req.params
+        const result = await pool.query('Select * from estados where ambito = $1 ORDER BY id', [ambito])
         if(result .rows.length === 0){
             return res.status(404).json({ success: false, error: 'No hay estados'})
         }
