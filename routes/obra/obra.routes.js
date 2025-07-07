@@ -4,7 +4,7 @@ const router = express.Router();
 
 //midlewares 
 const { validarFechasObra } = require('../../middlewares/validarFechasObra.js');
-
+const {verificar_tipo_obra, verificar_estado, verificar_usuario} = require('../../middlewares/verificarExistencias.js')
 
 //controladores
 const {createObra, getAllObras, modifyObra, darDeBajaObra, getObrasByEstado, getObraByID, getObrasByUbicacion} = require('../../controllers/obra/obra.controller.js')
@@ -14,8 +14,8 @@ const {  createTipoObra,
     getAllTipoDeObra } = require ('../../controllers/obra/tipo-obra.controller.js')
 
 
-//rutas obra
-router.post('/create', validarFechasObra, createObra)
+//rutas obra (FALTA MIDDLEWARE PARA VERIFICAR EL ROL)
+router.post('/create',verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra)
 router.get('/getAll', getAllObras)
 router.put('/modificar/:id', validarFechasObra, modifyObra) 
 router.delete('/delete/:id', darDeBajaObra)

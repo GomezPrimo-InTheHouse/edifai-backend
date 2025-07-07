@@ -2,30 +2,40 @@ const pool = require('../../connection/db.js');
 
 // Crear una nueva labor
 const crearLabor = async (req, res) => {
+    // fecha inicio real y fecha fin real, son datos que se van a adicionar a la labor mas adelante
+    // con el caso de uso modificar labor.
     try {
         const {
-            obra_id, descripcion,
-            fecha_inicio_estimada, fecha_fin_estimada,
-            fecha_inicio_real, fecha_fin_real,
-            estado_id, trabajador_id
+            obra_id, 
+            descripcion,
+            fecha_inicio_estimada,
+            fecha_fin_estimada,
+            estado_id,
+            trabajador_id,
+            nombre,
+            especialidad_id,
+            usuario_creador_id
         } = req.body;
+
+        
 
     const result = await pool.query(`
       INSERT INTO labores (
-        obra_id, descripcion,
-        fecha_inicio_estimada, fecha_fin_estimada,
-        fecha_inicio_real, fecha_fin_real,
-        estado_id, trabajador_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        obra_id, 
+        descripcion,
+        fecha_inicio_estimada, 
+        fecha_fin_estimada,
+        estado_id, 
+        trabajador_id, nombre,especialidad_id,usuario_creador_id
+      ) VALUES ($1,$2,$3,$4,$5,$6, $7, $8, $9)
       RETURNING *
-    `, [
-            obra_id, descripcion,
-            fecha_inicio_estimada, fecha_fin_estimada,
-            fecha_inicio_real, fecha_fin_real,
-            estado_id, trabajador_id
-        ]);
+    `, [ obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada, estado_id, trabajador_id,nombre, 
+        especialidad_id, usuario_creador_id]);
 
-        res.status(201).json(result.rows[0]);
+        res.status(200).json({
+            success: true,
+            data: result.rows[0]
+        });
     } catch (error) {
         console.error('Error al crear labor:', error);
         res.status(500).json({ error: 'Error al crear la labor' });
@@ -35,7 +45,7 @@ const crearLabor = async (req, res) => {
 // Obtener todas las labores
 const obtenerLabores = async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM labores');
+        const result = await pool.query('SELECT * FROM labores ORDER BY id');
         res.status(200).json({
             success:true,
             data: result.rows
@@ -67,15 +77,19 @@ const obtenerLaborPorId = async (req, res) => {
 // Actualizar una labor
 const actualizarLabor = async (req, res) => {
     const { id } = req.params;
+   
     const {
         obra_id, descripcion,
         fecha_inicio_estimada, fecha_fin_estimada,
         fecha_inicio_real, fecha_fin_real,
-        estado_id, trabajador_id
+        estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id
     } = req.body;
+   
 
     try {
-        const result = await pool.query(`
+
+    
+    const result = await pool.query(`
       UPDATE labores SET
         obra_id = $1,
         descripcion = $2,
@@ -84,29 +98,34 @@ const actualizarLabor = async (req, res) => {
         fecha_inicio_real = $5,
         fecha_fin_real = $6,
         estado_id = $7,
-        trabajador_id = $8
-      WHERE id = $9
+        trabajador_id = $8,
+        nombre = $9,
+        especialidad_id = $10,
+        usuario_creador_id = $11
+      WHERE id = $12
       RETURNING *
     `, [
             obra_id, descripcion,
             fecha_inicio_estimada, fecha_fin_estimada,
             fecha_inicio_real, fecha_fin_real,
-            estado_id, trabajador_id, id
+            estado_id, trabajador_id, nombre,especialidad_id,usuario_creador_id, id
         ]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Labor no encontrada' });
         }
 
-        res.json(result.rows[0]);
+        res.status(200).json({
+            success:true,
+            data:result.rows[0]
+        });
     } catch (error) {
         console.error('Error al actualizar labor:', error);
-        res.status(500).json({ error: 'Error al actualizar la labor' });
+        res.status(500).json({success:false, error: 'Error al actualizar la labor' });
     }
 };
 
 // Eliminar una labor, cambiando su estado a estado_id = 2
-
 const darDeBajaLabor = async (req, res) => {
     try {
         const estado_id = 2
