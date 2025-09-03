@@ -1,5 +1,5 @@
 //Dependencias
-express = require('express');
+const express = require('express');
 const router = express.Router();
 //controllers
 const {login} = require('../../controllers/auth/login.controller.js');

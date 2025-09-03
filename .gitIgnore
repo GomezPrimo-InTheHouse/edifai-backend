@@ -1,2 +1,17 @@
-
+# Node modules
 node_modules/
+
+# Firebase
+.firebase/
+firebase-config.json
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+firestore.export/
+storage.export/
+storage.import/
+functions/node_modules/
+functions/lib/
+functions/.runtimeconfig.json
+functions/.env
+firebase-config.json
