@@ -3,6 +3,7 @@ const express = require('express');
 require('dotenv').config();
 const app = express();
 
+const AuthRoutes = require('../routes/auth/auth.routes.js');
 
 const PORT =  7001;
 
@@ -16,7 +17,7 @@ app.use(express.json());
 
 
 
-app.use('/auth', require('../routes/auth/auth.routes.js'));
+app.use('/auth', AuthRoutes);
 
 // coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
 app.get('/health', (_req, res) => {
