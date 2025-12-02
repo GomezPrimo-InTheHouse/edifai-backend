@@ -7,6 +7,7 @@ const { crearRol, modificarRol, obtenerRoles, eliminarRol  } = require('../../..
 
 
 // faltaria restringir el acceso a los endpoints de crear y modificar rol a un usuario con rol admin
+
 router.post('/crearRol' ,crearRol); //valida que los datos esten completos
 router.get('/getAllRoles', obtenerRoles) //trae datos de todos los roles
 router.post('/modificarRol/:id', modificarRol);//valida que el rol exista y que los datos esten completos - podria implementarse un middleware para validar los datos
