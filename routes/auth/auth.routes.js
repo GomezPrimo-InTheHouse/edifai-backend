@@ -5,7 +5,7 @@ const router = express.Router();
 const {login} = require('../../controllers/auth/login.controller.js');
 const {logout} = require('../../controllers/auth/logout.controller.js');
 const {darDeBajaUsuario} = require('../../controllers/auth/deleteUser.controller.js');
-const {register, obtenerUsuarios } = require('../../controllers/auth/register.controller.js');
+const {register } = require('../../controllers/auth/register.controller.js');
 const { refreshAccessToken } = require('../../controllers/auth/authWithRefresh.controller.js');
 //middlewares
 const { basicAuth } = require('../../middlewares/basicAuth.js');
@@ -33,7 +33,7 @@ router.post('/logout', logout)
 router.post('/darDeBaja/:id', autorizacionDeRoles('admin'), darDeBajaUsuario)
 
 
-router.get('/obtenerUsuarios', obtenerUsuarios)
+// router.get('/obtenerUsuarios', obtenerUsuarios)
 
 
 module.exports = router;
