@@ -1,32 +1,37 @@
+// controllers/login.controller.js (o auth.controller.js, según tu estructura)
 const pool = require('../../connection/db.js');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const speakeasy = require('speakeasy');
+const { verificarTotp } = require('../../utils/auth/totp-util.js');
 
 require('dotenv').config();
 
 const login = async (req, res) => {
-  console.log('Login request received:', req.user);
-  const { user } = req; // viene desde el middleware basicAuth
-  const { totp } = req.body; // codigo totp: esto debería venir en el body del request, se utiliza authenticator de Google.
+  // 👇 viene del middleware validarCredenciales
+  const usuario = req.usuario;
+  const { totp } = req.body;
+
+  console.log('Login request received, usuario desde middleware:', usuario?.email);
+
+  if (!usuario) {
+    return res.status(401).json({
+      error: 'No se recibieron credenciales válidas desde el middleware.',
+    });
+  }
+
+  if (!totp) {
+    return res.status(400).json({ error: 'Falta el código TOTP en el body.' });
+  }
 
   try {
-    // Buscar el usuario completo (incluye seed y rol)
-    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1 AND estado_id = 1', [user.email]);
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Usuario no encontrado' });
+    // Verificar que tenga TOTP configurado
+    if (!usuario.totp_seed) {
+      return res.status(400).json({
+        error: 'El usuario no tiene 2FA configurado. Contacte al administrador.',
+      });
     }
 
-    const usuario = result.rows[0];
-
-    // Verificar TOTP
-    const esValidoTOTP = speakeasy.totp.verify({
-      secret: usuario.totp_seed,
-      encoding: 'base32',
-      token: totp,
-      window: 1 
-    });
+    // Verificar TOTP usando el helper
+    const esValidoTOTP = verificarTotp(totp, usuario.totp_seed);
 
     if (!esValidoTOTP) {
       return res.status(401).json({ error: 'Código TOTP inválido' });
@@ -34,9 +39,12 @@ const login = async (req, res) => {
 
     // Generar tokens
     const accessToken = jwt.sign(
-      { userId: usuario.id, 
-        email: usuario.email, 
-        rol: usuario.rol },
+      {
+        userId: usuario.id,
+        email: usuario.email,
+        rol_id: usuario.rol_id,
+        rol_nombre: usuario.rol_nombre, // viene del JOIN en el middleware
+      },
       process.env.JWT_SECRET_KEY,
       { expiresIn: '1h' }
     );
@@ -47,21 +55,21 @@ const login = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Guardar sesión
+    // Guardar sesión (estado 1 = activa)
     const estadoSesionActivaId = 1;
-    await pool.query(`
+    await pool.query(
+      `
       INSERT INTO sesiones (usuario_id, access_token, refresh_token, estado_id)
       VALUES ($1, $2, $3, $4)
-    `, [usuario.id, accessToken, refreshToken, estadoSesionActivaId]);
+      `,
+      [usuario.id, accessToken, refreshToken, estadoSesionActivaId]
+    );
 
-    res.json({ accessToken, refreshToken });
-
+    return res.json({ accessToken, refreshToken });
   } catch (err) {
-    console.error('Error en loginConTOTP:', err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error en login:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
-
-
 
 module.exports = { login };

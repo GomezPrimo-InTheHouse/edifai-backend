@@ -4,6 +4,9 @@ require('dotenv').config();
 const app = express();
 
 const PORT = process.env.PORT_USUARIO || 7002;
+//routes
+const userRoleRoutes = require('../routes/usuario/userRol/userRol.routes.js');
+const usuariosRoutes = require('../routes/usuario/usuarios.routes.js');
 
 //esto es un log para la consola...
 app.use((req, res, next) => {
@@ -15,7 +18,8 @@ app.use(express.json());
 
 
 
-app.use('/usuario', require('../routes/usuario/userRol/user.routes.js'));
+app.use('/usuario-rol', userRoleRoutes);
+app.use('/usuario', usuariosRoutes);
 
 // coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
 app.get('/health', (_req, res) => {
