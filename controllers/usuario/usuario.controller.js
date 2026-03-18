@@ -49,41 +49,7 @@ const getUsuarios = async (req, res) => {
   }
 };
 
-/**
- * GET /api/usuarios/:id
- */
-const getUsuarioById = async (req, res) => {
-  const { id } = req.params;
 
-  try {
-    const query = `
-      SELECT 
-        u.id,
-        u.nombre,
-        u.email,
-        u.rol_id,
-        u.estado_id,
-        u.created_at,
-        u.updated_at,
-        r.nombre AS rol_nombre,
-        e.nombre AS estado_nombre
-      FROM usuarios u
-      LEFT JOIN roles r ON u.rol_id = r.id
-      LEFT JOIN estados e ON u.estado_id = e.id
-      WHERE u.id = $1;
-    `;
-
-    const { rows } = await pool.query(query, [id]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ ok: false, message: "Usuario no encontrado." });
-    }
-
-    return res.json({ ok: true, data: rows[0] });
-  } catch (err) {
-    return handlePgError(err, res);
-  }
-};
 
 /**
  * POST /api/usuarios
@@ -124,6 +90,41 @@ const createUsuario = async (req, res) => {
       message: "Usuario creado correctamente.",
       data: rows[0],
     });
+  } catch (err) {
+    return handlePgError(err, res);
+  }
+};
+/**
+ * GET /api/usuarios/:id
+ */
+const getUsuarioById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = `
+      SELECT 
+        u.id,
+        u.nombre,
+        u.email,
+        u.rol_id,
+        u.estado_id,
+        u.created_at,
+        u.updated_at,
+        r.nombre AS rol_nombre,
+        e.nombre AS estado_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN estados e ON u.estado_id = e.id
+      WHERE u.id = $1;
+    `;
+
+    const { rows } = await pool.query(query, [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, message: "Usuario no encontrado." });
+    }
+
+    return res.json({ ok: true, data: rows[0] });
   } catch (err) {
     return handlePgError(err, res);
   }

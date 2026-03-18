@@ -21,8 +21,8 @@ router.post('/register', register);
 //2) verficarTotp para determinar mediante el rol, si es necesatio proporcionarle un TOTP
 // o si no es necesario un TOTP.
 
-
-router.post('/login', validarCreedenciales, verificarTotpSiCorresponde, login) 
+// basicAuth se agrego al ultimo.
+router.post('/login', basicAuth, validarCreedenciales, verificarTotpSiCorresponde, login) 
 
 
 
