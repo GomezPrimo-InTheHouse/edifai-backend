@@ -114,15 +114,16 @@ const createTrabajador = async (req, res) => {
     const nuevoTrabajador = await client.query(
       `
       INSERT INTO trabajadores
-        (nombre, apellido, dni, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, usuario_creador_id, created_at, updated_at)
+        (nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, usuario_creador_id, created_at, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), now())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11 , now(), now())
       RETURNING *;
       `,
       [
         nombre,
         apellido,
         dni,
+        email,
         telefono ?? null,
         fecha_ingreso ?? null,
         estado_id ?? null,
@@ -187,7 +188,7 @@ const getAllTrabajadores = async (req, res)=>{
 
 const modificarTrabajador = async (req, res) => {
     const {id} = req.params;
-    const { nombre, apellido, dni, 
+    const { nombre, apellido, dni, email,
         telefono, fecha_ingreso, 
          estado_id, usuario_id, 
         especialidad_id, jefe_id 
@@ -203,11 +204,11 @@ const modificarTrabajador = async (req, res) => {
         // Actualizar el trabajador
         const result = await pool.query(`
             UPDATE trabajadores 
-            SET nombre = $1, apellido = $2, dni = $3, telefono = $4, fecha_ingreso = $5, 
-                obra_id = $6, estado_id = $7, usuario_id = $8, especialidad_id = $9, jefe_id = $10 
+            SET nombre = $1, apellido = $2, dni = $3, email = $4, telefono = $5, fecha_ingreso = $6
+            , estado_id = $7, usuario_id = $8, especialidad_id = $9, jefe_id = $10 
             WHERE id = $11 
             RETURNING *
-        `, [nombre, apellido, dni, telefono, fecha_ingreso, obra_id, estado_id, usuario_id, especialidad_id, jefe_id, id]);
+        `, [nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, id]);
 
         const trabajadorModificado = result.rows[0];
         return res.status(200).json({
@@ -224,32 +225,41 @@ const modificarTrabajador = async (req, res) => {
 
 //dar de baja un trabajador, sin borrarlo de la base de datos
 const darDeBajaTrabajador = async (req, res) => {
-    const { id } = req.params;
-    try {
-        // Verificar que el trabajador existe
-        const trabajadorExistente = await pool.query('SELECT * FROM trabajadores WHERE id = $1', [id]);
-        if (trabajadorExistente.rows.length === 0) {
-            return res.status(404).json({ error: 'Trabajador no encontrado' });
-        }
+  const { id } = req.params;
 
-        // Actualizar el estado del trabajador a inactivo (estado_id = 2)
-        const result = await pool.query(`
-            UPDATE trabajadores 
-            SET estado_id = 2, updated_at = $1 
-            WHERE id = $2 
-            RETURNING *
-        `, [new Date(), id]);
-
-        const trabajadorBaja = result.rows[0];
-        return res.status(200).json({
-            message: 'Trabajador dado de baja correctamente',
-            data: trabajadorBaja
-        });
-        
-    } catch (error) {
-        console.error('Error al dar de baja al trabajador:', error);
-        return res.status(500).json({ error: 'Error al dar de baja al trabajador' });
+  try {
+    // Verificar si tiene subordinados asignados
+    const subordinados = await pool.query(
+      `SELECT id FROM trabajadores WHERE jefe_id = $1`,
+      [id]
+    );
+    if (subordinados.rows.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: `No se puede eliminar: el trabajador tiene ${subordinados.rows.length} subordinado(s) asignado(s).`,
+      });
     }
+
+    // Verificar si tiene labores asignadas
+    const labores = await pool.query(
+      `SELECT id FROM labores WHERE trabajador_id = $1`,
+      [id]
+    );
+    if (labores.rows.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: `No se puede eliminar: el trabajador tiene ${labores.rows.length} labor(es) asignada(s).`,
+      });
+    }
+
+    // Si pasa las validaciones, eliminar
+    await pool.query(`DELETE FROM trabajadores WHERE id = $1`, [id]);
+
+    res.status(200).json({ ok: true, message: 'Trabajador eliminado correctamente.' });
+  } catch (error) {
+    console.error('Error al eliminar trabajador:', error);
+    res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
+  }
 };
 
 //marcar presentismo
@@ -385,15 +395,89 @@ const marcarPresentismo = async (req, res) => {
     client.release();
   }
 };
+const getTrabajadorById = async (req, res) => {
+  const { id } = req.params;
 
+  try {
+    const result = await pool.query('SELECT * FROM trabajadores WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        ok: false, 
+        error: 'Trabajador no encontrado' 
+      });
+    }
 
+    return res.status(200).json({ 
+      ok: true, 
+      data: result.rows[0] 
+    });
+
+  } catch (error) {
+    console.error('Error al obtener trabajador:', error);
+    return res.status(500).json({ 
+      ok: false, 
+      error: 'Error al obtener el trabajador' 
+    });
+  }
+};
+
+// Obtiene todos los trabajadores de una especialidad específica
+const getTrabajadoresByEspecialidad = async (req, res) => {
+  const { especialidad_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM trabajadores WHERE especialidad_id = $1`,
+      [especialidad_id]
+    );
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener trabajadores por especialidad:', error);
+    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
+  }
+};
+// Obtiene jefes de una especialidad con su equipo anidado
+// Un jefe es un trabajador con jefe_id IS NULL dentro de una especialidad
+const getJefesConEquipoPorEspecialidad = async (req, res) => {
+  const { especialidad_id } = req.params;
+
+  try {
+    // Trae todos los trabajadores de la especialidad
+    const result = await pool.query(
+      `SELECT * FROM trabajadores WHERE especialidad_id = $1`,
+      [especialidad_id]
+    );
+
+    const todos = result.rows;
+
+    // Separa jefes (jefe_id IS NULL) y subordinados
+    const jefes = todos.filter((t) => t.jefe_id === null);
+    const subordinados = todos.filter((t) => t.jefe_id !== null);
+
+    // Anida el equipo dentro de cada jefe
+    const jefesConEquipo = jefes.map((jefe) => ({
+      ...jefe,
+      equipo: subordinados.filter((s) => s.jefe_id === jefe.id),
+    }));
+
+    res.status(200).json(jefesConEquipo);
+  } catch (error) {
+    console.error('Error al obtener jefes con equipo:', error);
+    res.status(500).json({ ok: false, error: 'Error interno del servidor' });
+  }
+};
 
 module.exports = {
     getAllTrabajadores,
     createTrabajador,
     modificarTrabajador,
     darDeBajaTrabajador,
-    marcarPresentismo
+    marcarPresentismo,
+    getTrabajadorById,
+    getTrabajadoresByEspecialidad,
+    getJefesConEquipoPorEspecialidad
 };
 
 
