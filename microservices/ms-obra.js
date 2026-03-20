@@ -23,6 +23,7 @@ app.use(express.json());
 
 app.use('/obra', require('../routes/obra/obra.routes.js'));
 
+
 app.get('/health', (_req, res) => {
   res.json({
     service: 'Microservicio de Obras',

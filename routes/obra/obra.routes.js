@@ -15,7 +15,7 @@ const {  createTipoObra,
 
 
 //rutas obra (FALTA MIDDLEWARE PARA VERIFICAR EL ROL)
-router.post('/create',verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra)
+router.post('/create', verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra)
 router.get('/getAll', getAllObras)
 router.put('/modificar/:id', validarFechasObra, modifyObra) 
 router.delete('/delete/:id', darDeBajaObra)
@@ -26,10 +26,10 @@ router.get('/getByUbicacion/:ubicacion', getObrasByUbicacion)
 
 
 //rutas tipos_de_obra
-router.post('tipoObra/create', createTipoObra )
-router.put('tipoObra/moficar/:id', modificarTipoDeObra)
-router.get('tipoObra/getAll', getAllTipoDeObra)
-router.delete('tipoObra/delete/:id', darDeBajaTipoObra)
+router.post('/tipoObra/create', createTipoObra )
+router.put('/tipoObra/modificar/:id', modificarTipoDeObra)
+router.get('/tipoObra/getAll', getAllTipoDeObra)
+router.delete('/tipoObra/delete/:id', darDeBajaTipoObra)
 
 
 

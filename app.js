@@ -10,7 +10,8 @@ const services = [
   { name: 'ms-trabajadores.js', port: 7003 },
   { name: 'ms-obra.js', port: 7004 },
   { name: 'ms-labores.js', port: 7005 },
-  { name: 'ms-estado.js', port: 7006 }
+  { name: 'ms-estado.js', port: 7006 },
+  { name: 'ms-materiales.js', port: 7007 },
 ];
 
 services.forEach(service => {
