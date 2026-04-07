@@ -1,6 +1,6 @@
 // controllers/usuario.controller.js
 const bcrypt = require("bcryptjs");
-const pool = require("../../connection/db.js"); // 🔁 mismo path que en trabajador.controller.js
+const pool = require("../../connection/db.js"); // mismo path que en trabajador.controller.js
 
 function handlePgError(err, res) {
   console.error("PG Error en usuario.controller:", err);

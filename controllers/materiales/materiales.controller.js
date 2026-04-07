@@ -181,7 +181,67 @@ const ajustePreciosMasivo = async (req, res) => {
   }
 };
 
+const getEstadisticasMateriales = async (req, res) => {
+  try {
+    // Materiales más utilizados en presupuestos
+    const masUtilizados = await pool.query(`
+      SELECT m.id, m.nombre, m.unidad,
+             COUNT(pm.id) as veces_usado,
+             SUM(pm.cantidad) as cantidad_total
+      FROM materiales m
+      JOIN presupuesto_materiales pm ON m.id = pm.material_id
+      GROUP BY m.id, m.nombre, m.unidad
+      ORDER BY veces_usado DESC
+      LIMIT 5
+    `);
+
+    // Top 5 materiales con mayor incremento de precio
+    const masAumentaron = await pool.query(`
+      SELECT m.id, m.nombre, m.precio_unitario,
+             MIN(h.precio_anterior) as precio_inicial,
+             MAX(h.precio_nuevo) as precio_actual,
+             ROUND(((MAX(h.precio_nuevo) - MIN(h.precio_anterior)) / NULLIF(MIN(h.precio_anterior), 0)) * 100, 2) as porcentaje_aumento
+      FROM materiales m
+      JOIN historial_incremento_material h ON m.id = h.material_id
+      GROUP BY m.id, m.nombre, m.precio_unitario
+      ORDER BY porcentaje_aumento DESC
+      LIMIT 5
+    `);
+
+    // Top 5 con más stock y top 5 con menos stock
+    const masStock = await pool.query(`
+      SELECT id, nombre, unidad, stock_actual
+      FROM materiales
+      ORDER BY stock_actual DESC
+      LIMIT 5
+    `);
+
+    const menosStock = await pool.query(`
+      SELECT id, nombre, unidad, stock_actual
+      FROM materiales
+      ORDER BY stock_actual ASC
+      LIMIT 5
+    `);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        mas_utilizados: masUtilizados.rows,
+        mas_aumentaron: masAumentaron.rows,
+        mas_stock: masStock.rows,
+        menos_stock: menosStock.rows,
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener estadísticas:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+
+
 module.exports = {
   getAllMateriales, getMaterialById, createMaterial,
   updateMaterial, deleteMaterial, ajustePreciosMasivo,
+  getEstadisticasMateriales,
 };
