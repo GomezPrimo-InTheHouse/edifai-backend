@@ -44,25 +44,28 @@ const autorizacionDeRoles = (...rolesPermitidos) => {
 
 
 
+const verificarToken = (req, res, next) => {
+  // Acepta Bearer header O query param ?token= (para SSE)
+  const authHeader = req.headers.authorization;
+  const tokenFromQuery = req.query.token;
 
-// const verificarEventoExistente = async (req, res, next) => {
-//   const { nombre } = req.body;
+  const token = tokenFromQuery || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
 
-//   try {
-//     const result = await pool.query('SELECT * FROM eventos WHERE nombre = $1', [nombre]);
+  if (!token) {
+    return res.status(401).json({ error: 'Token no proporcionado' });
+  }
 
-//     if (result.rows.length > 0) {
-//       return res.status(409).json({ error: 'El evento ya existe.' });
-//     }
-
-//     next();
-//   } catch (error) {
-//     console.error('Error al verificar evento existente:', error);
-//     return res.status(500).json({ error: 'Error interno del servidor' });
-//   }
-// };
-
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Token inválido o expirado' });
+  }
+};
 
 module.exports = {
-  autorizacionDeRoles
+  autorizacionDeRoles,
+  verificarToken,  
 };
+

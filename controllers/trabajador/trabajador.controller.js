@@ -114,9 +114,10 @@ const createTrabajador = async (req, res) => {
     const nuevoTrabajador = await client.query(
       `
       INSERT INTO trabajadores
-        (nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, usuario_creador_id, created_at, updated_at)
+        (nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, 
+        especialidad_id, jefe_id, usuario_creador_id, created_at, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11 , now(), now())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11 , now(), null)
       RETURNING *;
       `,
       [
@@ -205,7 +206,7 @@ const modificarTrabajador = async (req, res) => {
         const result = await pool.query(`
             UPDATE trabajadores 
             SET nombre = $1, apellido = $2, dni = $3, email = $4, telefono = $5, fecha_ingreso = $6
-            , estado_id = $7, usuario_id = $8, especialidad_id = $9, jefe_id = $10 
+            , estado_id = $7, usuario_id = $8, especialidad_id = $9, jefe_id = $10 , updated_at = now()
             WHERE id = $11 
             RETURNING *
         `, [nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, id]);

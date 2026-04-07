@@ -1,5 +1,7 @@
 // middlewares/verificarTotpSiCorresponde.js
 const speakeasy = require('speakeasy');
+ 
+// const allowedRolesSinTotp = ['TRABAJADOR', 'TRABAJADOR JEFE']; // Roles que no requieren TOTP
 
 const verificarTotpSiCorresponde = (req, res, next) => {
   const { usuario } = req;
@@ -8,7 +10,7 @@ const verificarTotpSiCorresponde = (req, res, next) => {
     return res.status(400).json({ error: 'Usuario no cargado en la solicitud' });
   }
 
-  if (usuario.rol_nombre === 'TRABAJADOR') {
+  if (usuario.rol_nombre === 'TRABAJADOR JEFE' || usuario.rol_id === 8) {
     return next(); // Trabajador NO requiere TOTP
   }
 
