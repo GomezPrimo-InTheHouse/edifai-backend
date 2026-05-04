@@ -1,14 +1,14 @@
-// controllers/login.controller.js (o auth.controller.js, según tu estructura)
-const pool = require('../../connection/db.js');
-const jwt = require('jsonwebtoken');
-const { verificarTotp } = require('../../utils/auth/totp-util.js');
+// // controllers/login.controller.js (o auth.controller.js, según tu estructura)
+// const pool = require('../../connection/db.js');
+// const jwt = require('jsonwebtoken');
+// // const { verificarTotp } = require('../../utils/auth/totp-util.js');
+// const { notificar } = require('../../src/helpers/notificar.js');
 
-require('dotenv').config();
+// require('dotenv').config();
 
 // const login = async (req, res) => {
-//   // 👇 viene del middleware validarCredenciales
+//   // viene del middleware validarCredenciales
 //   const usuario = req.usuario;
-//   const { totp } = req.body;
 
 //   console.log('Login request received, usuario desde middleware:', usuario?.email);
 
@@ -18,32 +18,13 @@ require('dotenv').config();
 //     });
 //   }
 
-//   if (!totp) {
-//     return res.status(400).json({ error: 'Falta el código TOTP en el body.' });
-//   }
-
 //   try {
-//     // Verificar que tenga TOTP configurado
-//     if (!usuario.totp_seed) {
-//       return res.status(400).json({
-//         error: 'El usuario no tiene 2FA configurado. Contacte al administrador.',
-//       });
-//     }
-
-//     // Verificar TOTP usando el helper
-//     const esValidoTOTP = verificarTotp(totp, usuario.totp_seed);
-
-//     if (!esValidoTOTP) {
-//       return res.status(401).json({ error: 'Código TOTP inválido' });
-//     }
-
-//     // Generar tokens
 //     const accessToken = jwt.sign(
 //       {
 //         userId: usuario.id,
 //         email: usuario.email,
 //         rol_id: usuario.rol_id,
-//         rol_nombre: usuario.rol_nombre, // viene del JOIN en el middleware
+//         rol_nombre: usuario.rol_nombre,
 //       },
 //       process.env.JWT_SECRET_KEY,
 //       { expiresIn: '1h' }
@@ -55,7 +36,6 @@ require('dotenv').config();
 //       { expiresIn: '7d' }
 //     );
 
-//     // Guardar sesión (estado 1 = activa)
 //     const estadoSesionActivaId = 1;
 //     await pool.query(
 //       `
@@ -65,23 +45,36 @@ require('dotenv').config();
 //       [usuario.id, accessToken, refreshToken, estadoSesionActivaId]
 //     );
 
+//     await notificar({ tipo: 'login', mensaje: `Usuario ${usuario.email} inició sesión`, usuario_id: usuario.id });
+
 //     return res.json({
 //       accessToken,
-//       refreshToken,       
+//       refreshToken,
 //       user: {
 //         id: usuario.id,
 //         email: usuario.email,
 //         rol_id: usuario.rol_id,
 //         rol_nombre: usuario.rol_nombre,
 //       },
-//      });
+//     });
+
 //   } catch (err) {
+//     notificar({ tipo: 'error_sistema', mensaje: `Error en login: ${err.message}`, usuario_id: null });
 //     console.error('Error en login:', err);
 //     return res.status(500).json({ error: 'Error interno del servidor' });
 //   }
+
 // };
+// module.exports = { login };
+
+
+const pool = require('../../connection/db.js');
+const jwt = require('jsonwebtoken');
+const { notificar } = require('../../src/helpers/notificar.js');
+
+require('dotenv').config();
+
 const login = async (req, res) => {
-  // viene del middleware validarCredenciales
   const usuario = req.usuario;
 
   console.log('Login request received, usuario desde middleware:', usuario?.email);
@@ -95,44 +88,54 @@ const login = async (req, res) => {
   try {
     const accessToken = jwt.sign(
       {
-        userId: usuario.id,
-        email: usuario.email,
-        rol_id: usuario.rol_id,
+        userId:    usuario.id,
+        email:     usuario.email,
+        rol_id:    usuario.rol_id,
         rol_nombre: usuario.rol_nombre,
       },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: '1h' }
+      { expiresIn: '15m' }  // ← 15 minutos
     );
 
     const refreshToken = jwt.sign(
       { userId: usuario.id },
       process.env.JWT_REFRESH_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '7d' }   // ← 7 días sin cambios
     );
 
-    const estadoSesionActivaId = 1;
+    // Guardar sesión activa
     await pool.query(
-      `
-      INSERT INTO sesiones (usuario_id, access_token, refresh_token, estado_id)
-      VALUES ($1, $2, $3, $4)
-      `,
-      [usuario.id, accessToken, refreshToken, estadoSesionActivaId]
+      `INSERT INTO sesiones (usuario_id, access_token, refresh_token, estado_id)
+       VALUES ($1, $2, $3, $4)`,
+      [usuario.id, accessToken, refreshToken, 1]
     );
+
+    await notificar({
+      tipo: 'login',
+      mensaje: `Usuario ${usuario.email} inició sesión`,
+      usuario_id: usuario.id,
+    });
 
     return res.json({
       accessToken,
       refreshToken,
       user: {
-        id: usuario.id,
-        email: usuario.email,
-        rol_id: usuario.rol_id,
+        id:        usuario.id,
+        email:     usuario.email,
+        rol_id:    usuario.rol_id,
         rol_nombre: usuario.rol_nombre,
       },
     });
 
   } catch (err) {
+    notificar({
+      tipo: 'error_sistema',
+      mensaje: `Error en login: ${err.message}`,
+      usuario_id: null,
+    });
     console.error('Error en login:', err);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
+
 module.exports = { login };

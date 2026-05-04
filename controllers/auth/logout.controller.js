@@ -1,4 +1,5 @@
 const pool = require('../../connection/db.js');
+const { notificar } = require('../../src/helpers/notificar.js');
 
 const logout = async (req, res) => {
   const { email } = req.body;
@@ -42,14 +43,18 @@ const logout = async (req, res) => {
       });
     }
 
+    await notificar({ tipo: 'logout', mensaje: `Usuario cerró sesión`, usuario_id: userId });
+
     return res.status(200).json({
       message: 'Sesión finalizada correctamente',
       sesiones_cerradas: updateResult.rowCount
     });
   } catch (error) {
+    notificar({ tipo: 'error_sistema', mensaje: `Error en logout: ${error.message}`, usuario_id: null });
     console.error('Error al cerrar sesión:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
+
 };
 
 

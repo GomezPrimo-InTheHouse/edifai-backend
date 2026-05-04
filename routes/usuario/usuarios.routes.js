@@ -13,6 +13,8 @@ const {
 
 router.get("/", getUsuarios);
 router.get("/:id", getUsuarioById);
+router.post("/create", createUsuario); // ← nuevo
+
 router.post("/", createUsuario);
 router.put("/:id", updateUsuario);
 router.patch("/:id/password", updateUsuarioPassword);

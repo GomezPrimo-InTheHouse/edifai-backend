@@ -4,7 +4,7 @@ const router = require('express').Router();
 const {
   getAllPresupuestos, getPresupuestoById,
   createPresupuesto, updatePresupuesto,
-  deletePresupuesto, cambiarEstadoPresupuesto,
+  deletePresupuesto, cambiarEstadoPresupuesto, getPresupuestoContextoPago
 } = require('../../controllers/presupuestos/presupuestos.controller.js');
 
 router.get('/getAll', getAllPresupuestos);
@@ -13,5 +13,6 @@ router.post('/create', createPresupuesto);
 router.put('/modificar/:id', updatePresupuesto);
 router.delete('/delete/:id', deletePresupuesto);
 router.put('/cambiarEstado/:id', cambiarEstadoPresupuesto); // confirmar presupuesto → decrementa stock
+router.get('/contextoPago/:id', getPresupuestoContextoPago);
 
 module.exports = router;

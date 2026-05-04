@@ -14,6 +14,7 @@ const services = [
   { name: 'ms-materiales.js', port: 7007 },
   { name: 'ms-pagos.js', port: 7008 },
   { name: 'ms-notificaciones.js', port: 7009 },
+  { name: 'ms-clientes.js', port: 7010 },
 
 ];
 

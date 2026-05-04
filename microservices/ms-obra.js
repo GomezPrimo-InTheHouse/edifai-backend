@@ -22,7 +22,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 app.use('/obra', require('../routes/obra/obra.routes.js'));
-
+app.use('/dashboard', require('../routes/dashboard/dashboard.routes.js'));
 
 app.get('/health', (_req, res) => {
   res.json({

@@ -1,62 +1,151 @@
 const pool = require('../../connection/db.js');
 require('dotenv').config();
+const { notificar } = require('../../src/helpers/notificar.js');
 
-
-
-//create obras
 const createObra = async (req, res) => {
   try {
     const {
-      usuario_creador_id,  // creador de la obra ( llamado en otros abm como creador_id)
+      usuario_creador_id,
       nombre,
       descripcion,
       ubicacion,
+      latitud,        // ← nuevo
+      longitud,       // ← nuevo
       fecha_fin_estimado,
       fecha_inicio_estimado,
       tipo_obra_id,
-      estado_id } = req.body;
+      estado_id,
+    } = req.body;
 
-    //validar datos de la obra
     if (!nombre || !descripcion || !ubicacion ||
       !fecha_fin_estimado || !fecha_inicio_estimado ||
       !tipo_obra_id || !estado_id || !usuario_creador_id) {
-      return res.status(400).json({ message: 'Faltan datos para crear la obra' })
+      return res.status(400).json({ message: 'Faltan datos para crear la obra' });
     }
 
-    //validar usuario id
-    
-
-
-    //validar tipo de obra id
-    const tipoObra = await pool.query('SELECT * FROM tipos_de_obra WHERE id = $1', [tipo_obra_id])
+    const tipoObra = await pool.query('SELECT * FROM tipos_de_obra WHERE id = $1', [tipo_obra_id]);
     if (tipoObra.rows.length === 0) {
       return res.status(400).json({ message: 'Tipo de obra no existente' });
     }
 
+    const result = await pool.query(
+      `INSERT INTO obras (
+        usuario_creador_id, nombre, descripcion, ubicacion,
+        latitud, longitud,
+        fecha_fin_estimado, fecha_inicio_estimado,
+        tipo_obra_id, estado_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        usuario_creador_id, nombre, descripcion, ubicacion,
+        latitud ?? null, longitud ?? null,
+        fecha_fin_estimado, fecha_inicio_estimado,
+        tipo_obra_id, estado_id,
+      ]
+    );
 
-
-    const result = await pool.query(`INSERT INTO obras (usuario_creador_id, nombre, descripcion, ubicacion, 
-                fecha_fin_estimado, fecha_inicio_estimado,
-                tipo_obra_id, estado_id) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [usuario_creador_id, nombre, descripcion, ubicacion, fecha_fin_estimado, fecha_inicio_estimado,
-        tipo_obra_id, estado_id]);
+    await notificar({
+      tipo: 'obra_creada',
+      mensaje: `Nueva obra creada: "${nombre}"`,
+      usuario_id: null, // global — solo admins
+    });
 
     return res.status(200).json({
       success: true,
       message: 'Obra creada con éxito',
       obra: result.rows[0],
     });
-
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al crear obra',
-      error: error.message
-    })
+    notificar({
+      tipo: 'error_sistema',
+      mensaje: `Error al crear obra: ${error.message}`,
+      usuario_id: null,
+    });
+    res.status(500).json({ success: false, message: 'Error al crear obra', error: error.message });
   }
-}
+};
 
+const modifyObra = async (req, res) => {
+  const { id } = req.params;
+  const {
+    usuario_creador_id,
+    nombre,
+    descripcion,
+    ubicacion,
+    latitud,        // ← nuevo
+    longitud,       // ← nuevo
+    fecha_inicio_real,
+    fecha_fin_real,
+    fecha_inicio_estimado,
+    fecha_fin_estimado,
+    tipo_obra_id,
+    estado_id,
+  } = req.body;
+
+  try {
+    const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+    if (obraExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Obra no encontrada' });
+    }
+
+    if (!nombre) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios (nombre)' });
+    }
+
+    const result = await pool.query(
+      `UPDATE obras SET
+        usuario_creador_id = $1,
+        nombre             = $2,
+        descripcion        = $3,
+        ubicacion          = $4,
+        latitud            = $5,
+        longitud           = $6,
+        fecha_inicio_real  = $7,
+        fecha_fin_real     = $8,
+        fecha_inicio_estimado = $9,
+        fecha_fin_estimado = $10,
+        tipo_obra_id       = $11,
+        estado_id          = $12
+      WHERE id = $13
+      RETURNING *`,
+      [
+        usuario_creador_id,
+        nombre,
+        descripcion || null,
+        ubicacion || null,
+        latitud ?? null,
+        longitud ?? null,
+        fecha_inicio_real || null,
+        fecha_fin_real || null,
+        fecha_inicio_estimado || null,
+        fecha_fin_estimado || null,
+        tipo_obra_id || null,
+        estado_id || null,
+        id,
+      ]
+    );
+
+    await notificar({
+      tipo: 'obra_modificada',
+      mensaje: `Obra #${id} fue modificada`,
+      usuario_id: null, // global — solo admins
+    });
+
+    return res.status(200).json({
+      obra: result.rows[0],
+      message: 'Obra actualizada correctamente',
+    });
+  } catch (error) {
+    console.error('Error al modificar obra:', error);
+    notificar({
+      tipo: 'error_sistema',
+      mensaje: `Error al modificar obra #${id}: ${error.message}`,
+      usuario_id: null,
+    });
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
 
 //getAll obras
 const getAllObras = async (_req, res) => {
@@ -75,85 +164,6 @@ const getAllObras = async (_req, res) => {
     });
   }
 }
-
-
-
-//modificar obra 
-
-const modifyObra = async (req, res) => {
-  const { id } = req.params;
-
-  const {
-    usuario_creador_id,
-    nombre,
-    descripcion,
-    ubicacion,
-    fecha_inicio_real,
-    fecha_fin_real,
-    fecha_inicio_estimado,
-    fecha_fin_estimado,
-    tipo_obra_id,
-    estado_id
-  } = req.body;
-
-  try {
-    // Verificar que la obra exista
-    const obraExistente = await pool.query(
-      'SELECT id FROM obras WHERE id = $1',
-      [id]
-    );
-
-    if (obraExistente.rows.length === 0) {
-      return res.status(404).json({ error: 'Obra no encontrada' });
-    }
-
-    // Validación mínima
-    if (!nombre) {
-      return res.status(400).json({ error: 'Faltan datos obligatorios (nombre)' });
-    }
-
-    // Actualizar la obra
-    const result = await pool.query(
-      `
-      UPDATE obras
-      SET usuario_creador_id = $1,
-          nombre = $2,
-          descripcion = $3,
-          ubicacion = $4,
-          fecha_inicio_real = $5,
-          fecha_fin_real = $6,
-          fecha_inicio_estimado = $7,
-          fecha_fin_estimado = $8,
-          tipo_obra_id = $9,
-          estado_id = $10
-      WHERE id = $11
-      RETURNING *;
-      `,
-      [
-        usuario_creador_id,
-        nombre,
-        descripcion || null,
-        ubicacion || null,
-        fecha_inicio_real || null,
-        fecha_fin_real || null,
-        fecha_inicio_estimado || null,
-        fecha_fin_estimado || null,
-        tipo_obra_id || null,
-        estado_id || null,
-        id
-      ]
-    );
-
-    return res.status(200).json({
-      obra: result.rows[0],
-      message: 'Obra actualizada correctamente'
-    });
-  } catch (error) {
-    console.error('Error al modificar obra:', error);
-    return res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
 
 
 //dar de baja obra ( no eliminar)

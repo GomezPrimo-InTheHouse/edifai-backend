@@ -10,7 +10,7 @@ const {
 const { verificarToken } = require('../../middlewares/autorizacionDeRoles');
 
 // SSE — stream tiempo real (requiere auth)
-router.get('/sse', verificarToken, sseStream);
+router.get('/sse', sseStream);
 
 // CRUD
 router.get('/',           verificarToken, getNotificaciones);

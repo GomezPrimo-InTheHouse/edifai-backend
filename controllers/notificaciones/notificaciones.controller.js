@@ -5,8 +5,41 @@ const sseClients = new Map();
 
 // ── SSE stream ────────────────────────────────────────────────
 const sseStream = (req, res) => {
-  const userId = req.user.userId;
-  const isAdmin = [1, 3, 4, 6].includes(req.user.rol_id);
+  // Verificar token manualmente — acepta query param o header
+  const authHeader = req.headers.authorization;
+  const tokenFromQuery = req.query.token;
+  const token = tokenFromQuery || (authHeader?.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : null);
+
+  if (!token) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.flushHeaders();
+    res.write(`event: auth_error\ndata: ${JSON.stringify({ message: 'Token no proporcionado' })}\n\n`);
+    return res.end();
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+  } catch (error) {
+    // Token expirado — mandar evento antes de cerrar
+    // El frontend lo detecta y reconecta con token nuevo
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.flushHeaders();
+    res.write(`event: auth_error\ndata: ${JSON.stringify({ message: 'Token expirado' })}\n\n`);
+    return res.end();
+  }
+
+  // Token válido — continuar con la lógica existente
+  const userId  = decoded.userId;
+  const isAdmin = [1, 3, 4, 6].includes(decoded.rol_id);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -14,20 +47,17 @@ const sseStream = (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
   res.flushHeaders();
 
-  // Heartbeat cada 30s para mantener la conexión viva
   const heartbeat = setInterval(() => {
     res.write(':heartbeat\n\n');
   }, 30000);
 
-  // Registrar cliente
   const clientKey = isAdmin ? 'admin' : String(userId);
   if (!sseClients.has(clientKey)) sseClients.set(clientKey, []);
   sseClients.get(clientKey).push(res);
 
-  // Al cerrar conexión, limpiar
   req.on('close', () => {
     clearInterval(heartbeat);
-    const clients = sseClients.get(clientKey) || [];
+    const clients  = sseClients.get(clientKey) || [];
     const filtered = clients.filter((c) => c !== res);
     if (filtered.length === 0) sseClients.delete(clientKey);
     else sseClients.set(clientKey, filtered);
@@ -38,32 +68,45 @@ const sseStream = (req, res) => {
 const emitirSSE = (notificacion) => {
   const data = `data: ${JSON.stringify(notificacion)}\n\n`;
 
-  // Emitir a admins
-  (sseClients.get('admin') || []).forEach((res) => res.write(data));
-
-  // Emitir al usuario específico si no es global
-  if (notificacion.usuario_id) {
+  if (notificacion.usuario_id === null) {
+    // Global → solo admins
+    (sseClients.get('admin') || []).forEach((res) => res.write(data));
+  } else {
+    // Personal → solo ese usuario específico + admins
     const key = String(notificacion.usuario_id);
     (sseClients.get(key) || []).forEach((res) => res.write(data));
+    (sseClients.get('admin') || []).forEach((res) => res.write(data));
   }
 };
 
 // ── GET /notificaciones ───────────────────────────────────────
 const getNotificaciones = async (req, res) => {
   const userId = req.user.userId;
-  const isAdmin = [1, 3, 4, 6].includes(req.user.rol_id);
+  const rolId = req.user.rol_id;
+  const isAdmin = [1, 3, 4, 6].includes(rolId);
 
   try {
-    const result = isAdmin
-      ? await pool.query(
-          `SELECT * FROM notificaciones ORDER BY created_at DESC LIMIT 100`
-        )
-      : await pool.query(
-          `SELECT * FROM notificaciones
-           WHERE usuario_id = $1 OR usuario_id IS NULL
-           ORDER BY created_at DESC LIMIT 50`,
-          [userId]
-        );
+    let result;
+
+    if (isAdmin) {
+      // Admins ven: globales (usuario_id = null) + las que les conciernen (su usuario_id)
+      result = await pool.query(
+        `SELECT * FROM notificaciones
+         WHERE usuario_id IS NULL OR usuario_id = $1
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [userId]
+      );
+    } else {
+      // Trabajadores ven: solo las suyas (su usuario_id exacto)
+      result = await pool.query(
+        `SELECT * FROM notificaciones
+         WHERE usuario_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [userId]
+      );
+    }
 
     res.json({ success: true, data: result.rows });
   } catch (err) {
