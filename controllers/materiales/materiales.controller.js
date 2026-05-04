@@ -1,6 +1,7 @@
 // materiales.controller.js - CRUD materiales + ajuste masivo de precios
 // TODO: Implementar controladores CRUD para materiales y ajuste masivo de precios
 const pool  = require('../../connection/db.js');
+const { notificar } = require('../../src/helpers/notificar.js');
 
 // Obtiene todos los materiales
 const getAllMateriales = async (req, res) => {
@@ -44,8 +45,10 @@ const createMaterial = async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [nombre, descripcion, tipo_material_id, unidad, stock_actual, precio_unitario, porcentaje_aumento_mensual, estado_id, imagen_url]
     );
+    await notificar({ tipo: 'material_creado', mensaje: `Nuevo material creado: "${nombre}"`, usuario_id: null });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
+    notificar({ tipo: 'error_sistema', mensaje: `Error en createMaterial: ${error.message}`, usuario_id: null });
       console.error('Error DETALLADO al crear material:', error.message, error.stack);
 
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -69,6 +72,7 @@ const updateMaterial = async (req, res) => {
        WHERE id=$10 RETURNING *`,
       [nombre, descripcion, tipo_material_id, unidad, stock_actual, precio_unitario, porcentaje_aumento_mensual, estado_id, imagen_url, id]
     );
+    await notificar({ tipo: 'material_modificado', mensaje: `Material #${id} fue modificado`, usuario_id: null });
     if (result.rows.length === 0)
       return res.status(404).json({ success: false, message: 'Material no encontrado' });
     res.status(200).json({ success: true, data: result.rows[0] });
@@ -91,6 +95,7 @@ const deleteMaterial = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No se puede eliminar: el material está en presupuestos activos.' });
 
     await pool.query(`DELETE FROM materiales WHERE id = $1`, [id]);
+    await notificar({ tipo: 'material_eliminado', mensaje: `Material #${id} fue eliminado`, usuario_id: null });
     res.status(200).json({ success: true, message: 'Material eliminado correctamente.' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -171,6 +176,7 @@ const ajustePreciosMasivo = async (req, res) => {
     }
 
     await client.query('COMMIT');
+    await notificar({ tipo: 'ajuste_precios', mensaje: `Ajuste masivo de precios aplicado`, usuario_id: null });
     res.status(200).json({ success: true, message: `Precios ajustados correctamente en ${materiales.rows.length} material(es).` });
   } catch (error) {
     await client.query('ROLLBACK');

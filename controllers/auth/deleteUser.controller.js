@@ -1,5 +1,5 @@
 
-// controllers/userController.js
+// controllers/auth/userController.js
 const pool = require('../../connection/db.js');
 
 const darDeBajaUsuario = async (req, res) => {

@@ -5,6 +5,10 @@ const app = express();
 
 const PORT = process.env.PORT_TRABAJADOR || 7003;
 
+// const especialidadRoutes = require('../routes/especialidad/especialidad.routes.js');
+// const trabajadorRoutes = require('../routes/trabajadores/trabajadores.routes.js');
+// const presentismoRoutes = require('../routes/presentismo/presentismo.routes.js');
+
 // CORS
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
@@ -25,6 +29,8 @@ app.use(express.json());
 
 app.use('/especialidad', require('../routes/especialidad/especialidad.routes.js'));
 app.use('/trabajador', require('../routes/trabajadores/trabajadores.routes.js'));
+app.use('/presentismo', require('../routes/presentismo/presentismo.routes.js'));
+
 
 // coma antes del req --> '_req', buena practica para evitar errores de linting si no se usa el parámetro 
 app.get('/health', (_req, res) => {

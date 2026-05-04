@@ -13,7 +13,6 @@ const jwt = require('jsonwebtoken');
 // - **Administradores**: Acceso total al sistema
 
 const autorizacionDeRoles = (...rolesPermitidos) => {
-  
   return (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -25,18 +24,20 @@ const autorizacionDeRoles = (...rolesPermitidos) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-      const userRole = decoded.rol;
 
-      if (!rolesPermitidos.includes(userRole)) {
+      // ← era decoded.rol, pero el payload usa rol_id
+      if (!rolesPermitidos.includes(decoded.rol_id)) {
         return res.status(403).json({ error: 'No tienes permisos para acceder a este recurso' });
       }
 
-      // Guardamos los datos del usuario en la request para usarlos después
       req.user = decoded;
       next();
     } catch (error) {
-      console.error('Error al verificar token:', error);
-      return res.status(403).json({ error: 'Token inválido o expirado' });
+      // ← era 403 para todo, ahora distingue expirado de inválido
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Token expirado' });
+      }
+      return res.status(403).json({ error: 'Token inválido' });
     }
   };
 };
@@ -45,10 +46,8 @@ const autorizacionDeRoles = (...rolesPermitidos) => {
 
 
 const verificarToken = (req, res, next) => {
-  // Acepta Bearer header O query param ?token= (para SSE)
   const authHeader = req.headers.authorization;
   const tokenFromQuery = req.query.token;
-
   const token = tokenFromQuery || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
 
   if (!token) {
@@ -60,7 +59,8 @@ const verificarToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(403).json({ error: 'Token inválido o expirado' });
+    // 401 = expirado o inválido → el interceptor del frontend lo captura y reintenta
+    return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 };
 
