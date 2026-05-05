@@ -402,6 +402,32 @@ const cambiarEstadoLabor = async (req, res) => {
   }
 };
 
+
+// ── Obtener labores por obra ───────────────────────────────────
+const obtenerLaboresPorObra = async (req, res) => {
+  const { obra_id } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT
+        l.*,
+        e.nombre                       AS estado_nombre,
+        esp.nombre                     AS especialidad_nombre,
+        t.nombre || ' ' || t.apellido  AS trabajador_nombre
+      FROM labores l
+      LEFT JOIN estados        e   ON e.id   = l.estado_id
+      LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
+      LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
+      WHERE l.obra_id = $1
+      ORDER BY l.id ASC
+    `, [obra_id]);
+
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error al obtener labores por obra:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   obtenerLabores,
   obtenerMisLabores,
@@ -410,4 +436,5 @@ module.exports = {
   actualizarLabor,
   darDeBajaLabor,
   cambiarEstadoLabor,
+  obtenerLaboresPorObra
 };

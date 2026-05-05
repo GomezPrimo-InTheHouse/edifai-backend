@@ -11,7 +11,8 @@ const {
     actualizarLabor,
     darDeBajaLabor,
     cambiarEstadoLabor,
-    obtenerMisLabores
+    obtenerMisLabores,
+    obtenerLaboresPorObra
 } = require ('../../controllers/labores/labores.controller.js')
 
 //falta adicionar middlewares para verificar rol (solo los admin pueden acceder a estas rutas)
@@ -35,6 +36,7 @@ router.get('/getAll', obtenerLabores);
 router.get('/getOne/:id', obtenerLaborPorId);
 router.get('/mis-labores', verificarToken, obtenerMisLabores);
 
+router.get('/getByObra/:obra_id', obtenerLaboresPorObra); 
 
 router.put('/actualizarLabor/:id',verificar_estado,
     verificar_trabajador,
