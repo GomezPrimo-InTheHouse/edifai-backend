@@ -93,21 +93,25 @@ const getDashboardAdmin = async (req, res) => {
       `),
 
       // Ausentes hoy
-      pool.query(`
-        SELECT DISTINCT t.id, t.nombre, t.apellido, o.nombre AS obra_nombre
-        FROM trabajadores_obras tob
-        JOIN trabajadores t ON t.id = tob.trabajador_id
-        JOIN obras o ON o.id = tob.obra_id
-        WHERE t.estado_id = 1
-          AND (tob.fecha_hasta IS NULL OR tob.fecha_hasta >= CURRENT_DATE)
-          AND t.id NOT IN (
-            SELECT DISTINCT trabajador_id FROM presentismos
-            WHERE DATE(fecha) = CURRENT_DATE
-          )
-        ORDER BY t.apellido
-        LIMIT 10
-      `),
-
+    
+pool.query(`
+  SELECT DISTINCT ON (t.id)
+    t.id,
+    t.nombre,
+    t.apellido,
+    o.nombre AS obra_nombre
+  FROM trabajadores_obras tob
+  JOIN trabajadores t ON t.id = tob.trabajador_id
+  JOIN obras o ON o.id = tob.obra_id
+  WHERE t.estado_id = 1
+    AND (tob.fecha_hasta IS NULL OR tob.fecha_hasta >= CURRENT_DATE)
+    AND t.id NOT IN (
+      SELECT DISTINCT trabajador_id FROM presentismos
+      WHERE DATE(fecha) = CURRENT_DATE
+    )
+  ORDER BY t.id, t.apellido
+  LIMIT 10
+`),
       // Materiales con stock crítico (stock < 10% del promedio)
       pool.query(`
         SELECT id, nombre, stock_actual, unidad
