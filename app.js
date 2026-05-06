@@ -34,16 +34,30 @@ services.forEach(service => {
 const app = express();
 
 // CORS
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const ALLOWED_ORIGINS = [
+  'https://edifai-nuevo-frontend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL);
+  const origin = req.headers.origin;
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.includes('localhost'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
-// 3. Proxy — UNA sola vez
+// LOG — para debuggear, sacar después
+app.use((req, res, next) => {
+  console.log(`GATEWAY → ${req.method} ${req.url}`);
+  next();
+});
+
+// 3. Proxy
 services.forEach(service => {
   service.prefix.forEach(prefix => {
     app.use(prefix, createProxyMiddleware({
