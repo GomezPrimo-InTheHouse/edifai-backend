@@ -51,7 +51,7 @@ const services = [
   { name: 'ms-labores.js',       port: 7005, prefix: '/labor' },
   { name: 'ms-estado.js',        port: 7006, prefix: '/estado' },
   { name: 'ms-materiales.js',    port: 7007, prefix: ['/materiales', '/tipoMaterial', '/historial', '/presupuestos', '/presupuestoMateriales'] },
-  { name: 'ms-pagos.js',         port: 7008, prefix: ['/pagos', '/formasPago'] },
+  { name: 'ms-pagos.js',         port: 7008, prefix: '/' },
   { name: 'ms-notificaciones.js',port: 7009, prefix: '/notificaciones' },
   { name: 'ms-clientes.js',      port: 7010, prefix: '/clientes' },
 ];
