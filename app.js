@@ -60,7 +60,7 @@ const services = [
 services.forEach(service => {
   const servicePath = path.join(__dirname, 'microservices', service.name);
   const child = spawn('node', [servicePath], {
-    env: { ...process.env, PORT: service.port },
+     env: { ...process.env, MS_PORT: service.port },
     stdio: 'inherit',
     shell: true,
   });

@@ -4,7 +4,7 @@ const express = require('express');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 7007;
+const PORT = process.env.MS_PORT || 7007;
 
 // CORS
 app.use((req, res, next) => {
