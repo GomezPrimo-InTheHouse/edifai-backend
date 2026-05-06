@@ -55,21 +55,22 @@ const services = [
   { name: 'ms-notificaciones.js',port: 7009, prefix: '/notificaciones' },
   { name: 'ms-clientes.js',      port: 7010, prefix: '/clientes' },
 ];
+// 2. Gateway Express en puerto 3000
+const app = express();
 
 // 1. Spawnear todos los microservicios
 services.forEach(service => {
-  const servicePath = path.join(__dirname, 'microservices', service.name);
-  const child = spawn('node', [servicePath], {
-     env: { ...process.env, MS_PORT: service.port },
-    stdio: 'inherit',
-    shell: true,
+  const prefixes = Array.isArray(service.prefix) ? service.prefix : [service.prefix];
+  prefixes.forEach(prefix => {
+    app.use(prefix, createProxyMiddleware({
+      target: `http://localhost:${service.port}`,
+      changeOrigin: true,
+      pathRewrite: { [`^${prefix}`]: prefix }, // ← mantiene el prefix
+    }));
   });
-  child.on('close', code => console.log(`✅ ${service.name} finalizó con código ${code}`));
-  child.on('error', err => console.error(`❌ Error al iniciar ${service.name}:`, err));
 });
 
-// 2. Gateway Express en puerto 3000
-const app = express();
+
 
 // permitir vercel y otros servicios externos (si es necesario)
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173' || 'https://edifai-frontend.vercel.app'; ;
