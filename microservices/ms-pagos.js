@@ -19,7 +19,9 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use('/', require('../routes/pagos/index.js'));
+
+app.use('/pagos', require('../routes/pagos/pagos.routes.js'));
+app.use('/formasPago', require('../routes/pagos/formasPago.routes.js'));
 
 app.get('/health', (_req, res) => {
   res.json({ service: 'Microservicio de Pagos', status: 'healthy', timestamp: new Date().toISOString() });
