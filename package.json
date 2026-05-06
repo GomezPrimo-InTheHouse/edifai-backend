@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "concurrently \"node index.js\" \"node microservice.js\"",
+    "start": "concurrently \"node app.js\" \"node microservice.js\"",
     "dev": "nodemon app.js",
     "microservice": "node microservice.js",
     "dev:microservice": "nodemon microservice.js",
