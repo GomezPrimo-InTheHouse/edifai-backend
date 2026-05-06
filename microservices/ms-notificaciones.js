@@ -3,7 +3,7 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 7009;
 
-// DESPUÉS — agregar métodos explícitamente:
+
 app.use(cors({
   origin: 'http://localhost:5173',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
