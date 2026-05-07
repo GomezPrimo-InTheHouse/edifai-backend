@@ -35,7 +35,7 @@ const app = express();
 
 // CORS
 const ALLOWED_ORIGINS = [
-  'https://edifai-eight.vercel.app/',
+  'https://edifai-eight.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
 ];
@@ -63,7 +63,6 @@ services.forEach(service => {
     app.use(prefix, createProxyMiddleware({
       target: `http://localhost:${service.port}`,
       changeOrigin: true,
-      pathRewrite: (path) => prefix + path,
     }));
   });
 });
