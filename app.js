@@ -63,6 +63,7 @@ services.forEach(service => {
     app.use(prefix, createProxyMiddleware({
       target: `http://localhost:${service.port}`,
       changeOrigin: true,
+      pathRewrite: (path) => prefix + path,
     }));
   });
 });
