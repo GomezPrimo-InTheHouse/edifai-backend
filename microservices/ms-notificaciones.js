@@ -1,15 +1,7 @@
 const express = require('express');
-const cors = require('cors');
 const app = express();
 
 const PORT = process.env.MS_PORT || 7009;
-
-
-app.use(cors({
-  origin: 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
 
 app.use(express.json());
 
