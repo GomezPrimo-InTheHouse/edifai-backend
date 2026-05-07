@@ -145,6 +145,8 @@ const getPagosByPresupuesto = async (req, res) => {
   }
 };
 
+// Solo cambia la sección de validación previa al INSERT. El resto queda igual.
+
 const createPago = async (req, res) => {
   const { presupuesto_id, trabajador_id, monto, fecha, motivo, forma_pago_id, estado } = req.body;
 
@@ -155,6 +157,29 @@ const createPago = async (req, res) => {
     });
 
   try {
+    // ── VALIDACIÓN PUNTO 2: solo presupuestos Confirmados (estado_id = 5) ──
+    const presupuestoResult = await pool.query(
+      `SELECT id, estado_id, nombre FROM presupuestos WHERE id = $1`,
+      [presupuesto_id]
+    );
+
+    if (presupuestoResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'El presupuesto no existe',
+      });
+    }
+
+    const presupuesto = presupuestoResult.rows[0];
+
+    if (presupuesto.estado_id !== 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Solo se pueden registrar pagos en presupuestos con estado Confirmado',
+      });
+    }
+    // ── FIN VALIDACIÓN ──
+
     const result = await pool.query(`
       INSERT INTO pagos (presupuesto_id, trabajador_id, monto, fecha, motivo, forma_pago_id, estado)
       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
@@ -162,7 +187,6 @@ const createPago = async (req, res) => {
 
     const pago = result.rows[0];
 
-    // Obtener usuario_id del trabajador para notificación personal
     const trabajadorResult = await pool.query(
       `SELECT usuario_id, nombre, apellido FROM trabajadores WHERE id = $1`,
       [trabajador_id]
@@ -173,7 +197,7 @@ const createPago = async (req, res) => {
     await notificar({
       tipo: 'pago_realizado',
       mensaje: `Se registró un pago de $${monto} para ${trabajador?.nombre ?? ''} ${trabajador?.apellido ?? ''}`,
-      usuario_id: usuarioIdTrabajador, // personal del trabajador + admins lo ven
+      usuario_id: usuarioIdTrabajador,
     });
 
     res.status(201).json({ success: true, data: pago });
