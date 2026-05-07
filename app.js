@@ -36,6 +36,7 @@ const app = express();
 // CORS
 const ALLOWED_ORIGINS = [
   'https://edifai-eight.vercel.app',
+  'edifai-git-main-julians-projects-22f74901.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
 ];
