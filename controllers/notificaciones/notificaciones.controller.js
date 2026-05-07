@@ -4,8 +4,11 @@ const pool = require('../../connection/db');
 const sseClients = new Map();
 
 // ── SSE stream ────────────────────────────────────────────────
-const sseStream = (req, res) => {
+
   // Verificar token manualmente — acepta query param o header
+const sseStream = (req, res) => {
+  const origin = req.headers.origin || 'http://localhost:5173';
+  
   const authHeader = req.headers.authorization;
   const tokenFromQuery = req.query.token;
   const token = tokenFromQuery || (authHeader?.startsWith('Bearer ')
@@ -16,7 +19,7 @@ const sseStream = (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Access-Control-Allow-Origin', origin);
     res.flushHeaders();
     res.write(`event: auth_error\ndata: ${JSON.stringify({ message: 'Token no proporcionado' })}\n\n`);
     return res.end();
@@ -26,25 +29,22 @@ const sseStream = (req, res) => {
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
   } catch (error) {
-    // Token expirado — mandar evento antes de cerrar
-    // El frontend lo detecta y reconecta con token nuevo
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Access-Control-Allow-Origin', origin);
     res.flushHeaders();
     res.write(`event: auth_error\ndata: ${JSON.stringify({ message: 'Token expirado' })}\n\n`);
     return res.end();
   }
 
-  // Token válido — continuar con la lógica existente
   const userId  = decoded.userId;
   const isAdmin = [1, 3, 4, 6].includes(decoded.rol_id);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.flushHeaders();
 
   const heartbeat = setInterval(() => {
