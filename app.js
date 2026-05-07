@@ -33,17 +33,30 @@ services.forEach(service => {
 // 2. Gateway
 const app = express();
 
-// CORS
-const ALLOWED_ORIGINS = [
-  'https://edifai-eight.vercel.app',
-  'edifai-git-main-julians-projects-22f74901.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-];
+// // CORS
+// const ALLOWED_ORIGINS = [
+//   'https://edifai-eight.vercel.app',
+//   'edifai-git-main-julians-projects-22f74901.vercel.app',
+//   'http://localhost:5173',
+//   'http://localhost:3000',
+// ];
 
+// app.use((req, res, next) => {
+//   const origin = req.headers.origin;
+//   if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.includes('localhost'))) {
+//     res.setHeader('Access-Control-Allow-Origin', origin);
+//   }
+//   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+//   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+//   if (req.method === 'OPTIONS') return res.sendStatus(200);
+//   next();
+// });
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.includes('localhost'))) {
+  if (
+    origin &&
+    (origin.includes('localhost') || origin.includes('vercel.app'))
+  ) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
