@@ -74,18 +74,10 @@ app.use((req, res, next) => {
 // 3. Proxy
 services.forEach(service => {
   service.prefix.forEach(prefix => {
-    const isSSE = service.name === 'ms-notificaciones.js';
     app.use(prefix, createProxyMiddleware({
       target: `http://localhost:${service.port}`,
       changeOrigin: true,
-      ws: true,
-      ...(isSSE && {
-        on: {
-          proxyRes: (proxyRes) => {
-            proxyRes.headers['access-control-allow-origin'] = undefined;
-          },
-        },
-      }),
+      pathRewrite: (path) => prefix + path,
     }));
   });
 });
