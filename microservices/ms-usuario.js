@@ -8,14 +8,14 @@ const PORT = process.env.PORT_USUARIO || 7002;
 const userRoleRoutes = require('../routes/usuario/userRol/userRol.routes.js');
 const usuariosRoutes = require('../routes/usuario/usuarios.routes.js');
 
-// CORS
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173' || 'https://edifai-nuevo-frontend.vercel.app');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT,PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
+// // CORS
+// app.use((req, res, next) => {
+//   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173' || 'https://edifai-nuevo-frontend.vercel.app');
+//   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT,PATCH, DELETE, OPTIONS');
+//   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+//   if (req.method === 'OPTIONS') return res.sendStatus(200);
+//   next();
+// });
 
 //esto es un log para la consola...
 app.use((req, res, next) => {
