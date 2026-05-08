@@ -9,15 +9,17 @@ const {
   updateUsuario,
   updateUsuarioPassword,
   deleteUsuario,
-} = require("../../controllers/usuario/usuario.controller.js"); // ajustá el path relativo
+  regenerarTotp,
+} = require("../../controllers/usuario/usuario.controller.js");
 
 router.get("/", getUsuarios);
 router.get("/:id", getUsuarioById);
-router.post("/create", createUsuario); // ← nuevo
+router.post("/create", createUsuario); 
 
 router.post("/", createUsuario);
 router.put("/:id", updateUsuario);
 router.patch("/:id/password", updateUsuarioPassword);
 router.delete("/:id", deleteUsuario);
+router.post("/:id/regenerar-totp", regenerarTotp); // nueva ruta para regenerar TOTP
 
 module.exports = router;

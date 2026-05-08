@@ -321,6 +321,60 @@ const updateUsuarioPassword = async (req, res) => {
 };
 
 
+const regenerarTotp = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Verificar que el usuario existe
+    const usuarioResult = await pool.query(
+      `SELECT id, email FROM usuarios WHERE id = $1 AND estado_id = 1`,
+      [id]
+    );
+
+    if (usuarioResult.rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        message: 'Usuario no encontrado o inactivo',
+      });
+    }
+
+    const usuario = usuarioResult.rows[0];
+
+    // Generar nuevo TOTP
+    const { generarTotp, generarQRCodeDataURL } = require('../../utils/auth/totp-util.js');
+    const totp         = generarTotp(usuario.email);
+    const totp_seed    = totp.base32;
+    const otpauth_url  = totp.otpauth_url;
+    const qrCodeDataURL = await generarQRCodeDataURL(otpauth_url);
+
+    // Actualizar el seed en la DB
+    await pool.query(
+      `UPDATE usuarios SET totp_seed = $1, updated_at = NOW() WHERE id = $2`,
+      [totp_seed, id]
+    );
+
+    await notificar({
+      tipo: 'totp_regenerado',
+      mensaje: `TOTP regenerado para el usuario "${usuario.email}"`,
+      usuario_id: null,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      message: 'TOTP regenerado correctamente',
+      qrCodeDataURL,
+      totp_seed,
+    });
+
+  } catch (err) {
+    console.error('Error al regenerar TOTP:', err);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error interno al regenerar TOTP',
+    });
+  }
+};
+
 module.exports = {
   getUsuarios,
   getUsuarioById,
@@ -328,4 +382,5 @@ module.exports = {
   updateUsuario,
   updateUsuarioPassword,
   deleteUsuario,
+  regenerarTotp,
 };
