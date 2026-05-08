@@ -46,6 +46,7 @@ const getUsuarios = async (req, res) => {
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
       LEFT JOIN estados e ON u.estado_id = e.id
+      WHERE u.estado_id = 1
       ORDER BY u.id ASC;
     `;
 
@@ -63,9 +64,7 @@ const getUsuarios = async (req, res) => {
  */
 const createUsuario = async (req, res) => {
   const { nombre, email, password, rol_id, estado_id, usuario_creador_id } = req.body;
-  // ← agregar estas dos líneas al inicio
-  logger.info(`MS_AUTH_URL vale: "${MS_AUTH_URL}"`);
-  logger.info(`process.env.MS_AUTH_URL vale: "${process.env.MS_AUTH_URL}"`);
+
   if (!email || !password || !rol_id) {
     return res.status(400).json({
       ok: false,
@@ -85,7 +84,8 @@ const createUsuario = async (req, res) => {
       usuario_creador_id,
     });
 
-    const { user, qrCodeDataURL, message } = authResponse.data;
+    // ✅ totp_seed extraído junto con el resto
+    const { user, qrCodeDataURL, message, totp_seed } = authResponse.data;
 
     logger.info(`Usuario creado correctamente: ${email}`);
 
@@ -100,6 +100,7 @@ const createUsuario = async (req, res) => {
       message,
       data: user,
       qrCodeDataURL,
+      totp_seed,    // ✅ ahora se incluye en la respuesta
     });
 
   } catch (err) {
@@ -124,7 +125,6 @@ const createUsuario = async (req, res) => {
     });
   }
 };
-
 
 
 /**
