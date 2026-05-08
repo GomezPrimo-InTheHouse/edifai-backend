@@ -60,6 +60,7 @@ const register = async (req, res) => {
       },
       message: 'Usuario registrado correctamente',
       qrCodeDataURL,
+      totp_seed,
     });
 
   } catch (error) {
