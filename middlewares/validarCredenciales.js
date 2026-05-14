@@ -35,6 +35,7 @@ const validarCredenciales = async (req, res, next) => {
 
     req.usuario = usuario; // lo dejamos listo para el siguiente middleware y controller
     next();
+    
   } catch (error) {
     console.error('Error en validarCredenciales:', error);
     return res.status(500).json({ error: 'Error interno en autenticación' });

@@ -33,7 +33,7 @@ router.post('/logout', logout)
 router.post('/darDeBaja/:id', autorizacionDeRoles('admin'), darDeBajaUsuario)
 
 
-// router.get('/obtenerUsuarios', obtenerUsuarios)
+// router.get('/obtenerUsuarios', obtenerUsuarios) -- esto esta en usuarios.routes.js, no en auth.routes.js, porque es una ruta de usuarios, no de autenticacion.
 
 
 module.exports = router;
