@@ -5,52 +5,37 @@ require('dotenv').config();
 // Crear una nueva especialidad
 const crearEspecialidad = async (req, res) => {
     try {
-        const { nombre, descripcion, estado_id } = req.body;
-    
-        if (!nombre || !descripcion || !estado_id) {
-            console.log('Datos incompletos para crear especialidad:', req.body);
-        return res.status(400).json({ error: 'Faltan nombre o descripción de la especialidad' });
+        const { nombre, descripcion } = req.body;
+        const estado_id = 1; // siempre activo
+
+        if (!nombre || !descripcion) {
+            return res.status(400).json({ error: 'Nombre y descripción son requeridos' });
         }
 
-        const estadoResult = await pool.query('SELECT * FROM estados WHERE id = $1', [estado_id]);
-        if (estadoResult.rows.length === 0) {
-            return res.status(400).json({ error: 'Estado no válido' });
-        }
-    
-        // Verificar si ya existe una especialidad con ese nombre
         const nombreLower = nombre.toLowerCase();
 
         const existente = await pool.query('SELECT * FROM especialidades WHERE nombre = $1', [nombreLower]);
         if (existente.rows.length > 0) {
-        return res.status(400).json({ message: 'La especialidad ya existe' });
+            return res.status(400).json({ message: 'La especialidad ya existe' });
         }
 
-     
-        // Crear la nueva especialidad
         const result = await pool.query(`
-        INSERT INTO especialidades (nombre, descripcion, estado_id)
-        VALUES ($1, $2, $3)
-        RETURNING id, nombre, descripcion, estado_id
+            INSERT INTO especialidades (nombre, descripcion, estado_id)
+            VALUES ($1, $2, $3)
+            RETURNING id, nombre, descripcion, estado_id
         `, [nombreLower, descripcion, estado_id]);
 
-        const nuevaEspecialidad = result.rows[0];
-
-        const estado = await pool.query('SELECT * FROM estados WHERE id = $1', [estado_id]);
-        nuevaEspecialidad.estado = estado.rows[0];
-    
-       return res.status(201).json({
-          id: nuevaEspecialidad.id,
-          nombre: nuevaEspecialidad.nombre,
-          descripcion: nuevaEspecialidad.descripcion,
-          estado: estadoResult.rows[0].nombre,
-          message: 'Especialidad creada correctamente'
+        return res.status(201).json({
+            id: result.rows[0].id,
+            nombre: result.rows[0].nombre,
+            descripcion: result.rows[0].descripcion,
+            message: 'Especialidad creada correctamente'
         });
-    
     } catch (error) {
         console.error('Error al crear especialidad:', error);
         return res.status(500).json({ error: 'Error interno del servidor' });
     }
-}
+};
 
 
 // Modificar una especialidad
@@ -138,23 +123,15 @@ const obtenerEspecialidades = async (req, res) => {
 //delete especialidad
 const eliminarEspecialidad = async (req, res) => {
     const { id } = req.params;
-    const estado_id = 2; 
     try {
-        // Verificar que la especialidad existe
         const especialidadExistente = await pool.query('SELECT * FROM especialidades WHERE id = $1', [id]);
         if (especialidadExistente.rows.length === 0) {
             return res.status(404).json({ error: 'Especialidad no encontrada' });
         }
-        
-        
 
-        // Actualizar el estado de la especialidad a "eliminada"
-        await pool.query('UPDATE especialidades SET estado_id = $1 WHERE id = $2', [estado_id, id]);
+        await pool.query('DELETE FROM especialidades WHERE id = $1', [id]);
 
-
-        
-        return res.status(200).json({ message: 'Especialidad modificada a estado inactivo' });
-        
+        return res.status(200).json({ message: 'Especialidad eliminada correctamente' });
     } catch (error) {
         console.error('Error al eliminar especialidad:', error);
         return res.status(500).json({ error: 'Error interno del servidor' });
