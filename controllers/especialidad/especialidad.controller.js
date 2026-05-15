@@ -129,6 +129,14 @@ const eliminarEspecialidad = async (req, res) => {
             return res.status(404).json({ error: 'Especialidad no encontrada' });
         }
 
+        const trabajadoresConEspecialidad = await pool.query(
+            'SELECT id FROM trabajadores WHERE especialidad_id = $1 LIMIT 1',
+            [id]
+        );
+        if (trabajadoresConEspecialidad.rows.length > 0) {
+            return res.status(400).json({ error: 'No se puede eliminar: hay trabajadores asignados a esta especialidad' });
+        }
+
         await pool.query('DELETE FROM especialidades WHERE id = $1', [id]);
 
         return res.status(200).json({ message: 'Especialidad eliminada correctamente' });
