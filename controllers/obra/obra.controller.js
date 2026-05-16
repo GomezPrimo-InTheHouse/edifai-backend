@@ -150,20 +150,30 @@ const modifyObra = async (req, res) => {
 //getAll obras
 const getAllObras = async (_req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM obras ORDER BY id`);
+    const result = await pool.query(`SELECT * FROM obras WHERE archivado = FALSE ORDER BY id`);
     return res.status(200).json({
       success: true,
       message: 'Obras obtenidas con éxito',
       obras: result.rows,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener obras',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener obras', error: error.message });
   }
-}
+};
+
+// Nuevo endpoint para obtener solo archivadas:
+const getObrasArchivadas = async (_req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM obras WHERE archivado = TRUE ORDER BY id`);
+    return res.status(200).json({
+      success: true,
+      message: 'Obras archivadas obtenidas con éxito',
+      obras: result.rows,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al obtener obras archivadas', error: error.message });
+  }
+};
 
 
 //dar de baja obra ( no eliminar)
@@ -291,6 +301,59 @@ const getObrasByEstado = async (req, res) => {
   }
 }
 
+const ROLES_ADMIN = [1, 3, 4, 6];
+
+const archivarObra = async (req, res) => {
+  const { id } = req.params;
+  const { archivar } = req.body; // true = archivar, false = desarchivar
+  const rolId = req.user?.rol_id;
+
+  if (!ROLES_ADMIN.includes(rolId)) {
+    return res.status(403).json({ error: 'No tenés permisos para realizar esta acción' });
+  }
+
+  try {
+    const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+    if (obraExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Obra no encontrada' });
+    }
+
+    // 1. Archivar obra
+    await pool.query('UPDATE obras SET archivado = $1 WHERE id = $2', [archivar, id]);
+
+    // 2. Archivar labores de la obra
+    await pool.query('UPDATE labores SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+
+    // 3. Archivar presupuestos de la obra
+    await pool.query('UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+
+    // 4. Archivar presentismos de la obra
+    await pool.query('UPDATE presentismos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+
+    // 5. Archivar pagos via presupuestos de la obra
+    await pool.query(`
+      UPDATE pagos SET archivado = $1
+      WHERE presupuesto_id IN (
+        SELECT id FROM presupuestos WHERE obra_id = $2
+      )
+    `, [archivar, id]);
+
+    await notificar({
+      tipo: archivar ? 'obra_archivada' : 'obra_desarchivada',
+      mensaje: `Obra #${id} fue ${archivar ? 'archivada' : 'desarchivada'}`,
+      usuario_id: null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Obra ${archivar ? 'archivada' : 'desarchivada'} correctamente`,
+    });
+  } catch (error) {
+    console.error('Error al archivar obra:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 
 
 module.exports = {
@@ -300,5 +363,7 @@ module.exports = {
   getObraByID,
   modifyObra,
   getObrasByUbicacion,
-  getObrasByEstado
+  getObrasByEstado,
+  archivarObra,
+  getObrasArchivadas
 }   
