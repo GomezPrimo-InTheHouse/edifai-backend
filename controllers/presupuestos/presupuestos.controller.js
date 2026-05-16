@@ -5,7 +5,16 @@ const { notificar } = require('../../src/helpers/notificar.js');
 
 const getAllPresupuestos = async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM presupuestos ORDER BY created_at DESC`);
+    const result = await pool.query(`SELECT * FROM presupuestos WHERE archivado = FALSE ORDER BY created_at DESC`);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+const getPresupuestosArchivados = async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM presupuestos WHERE archivado = TRUE ORDER BY created_at DESC`);
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -373,5 +382,6 @@ const getPresupuestoContextoPago = async (req, res) => {
 
 module.exports = {
   getAllPresupuestos, getPresupuestoById, createPresupuesto,
-  updatePresupuesto, deletePresupuesto, cambiarEstadoPresupuesto, getPresupuestoContextoPago
+  updatePresupuesto, deletePresupuesto, cambiarEstadoPresupuesto, getPresupuestoContextoPago,
+  getPresupuestosArchivados
 };

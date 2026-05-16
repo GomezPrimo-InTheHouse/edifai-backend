@@ -80,12 +80,36 @@ const obtenerLabores = async (req, res) => {
       LEFT JOIN obras o ON o.id = l.obra_id
       LEFT JOIN trabajadores t ON t.id = l.trabajador_id
       LEFT JOIN especialidades e ON e.id = l.especialidad_id
+      WHERE l.archivado = FALSE
       ORDER BY l.id
     `);
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
     console.error('Error al obtener labores:', error);
     res.status(500).json({ error: 'Error al obtener las labores' });
+  }
+};
+
+const obtenerLaboresArchivadas = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        l.*,
+        o.nombre AS obra_nombre,
+        t.nombre AS trabajador_nombre,
+        t.apellido AS trabajador_apellido,
+        e.nombre AS especialidad_nombre
+      FROM labores l
+      LEFT JOIN obras o ON o.id = l.obra_id
+      LEFT JOIN trabajadores t ON t.id = l.trabajador_id
+      LEFT JOIN especialidades e ON e.id = l.especialidad_id
+      WHERE l.archivado = TRUE
+      ORDER BY l.id
+    `);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error al obtener labores archivadas:', error);
+    res.status(500).json({ error: 'Error al obtener las labores archivadas' });
   }
 };
 
@@ -448,5 +472,6 @@ module.exports = {
   actualizarLabor,
   darDeBajaLabor,
   cambiarEstadoLabor,
-  obtenerLaboresPorObra
+  obtenerLaboresPorObra,
+  obtenerLaboresArchivadas
 };
