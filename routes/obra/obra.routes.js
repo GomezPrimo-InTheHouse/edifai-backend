@@ -8,7 +8,9 @@ const {verificar_tipo_obra, verificar_estado, verificar_usuario} = require('../.
 const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 
 //controladores
-const {createObra, getAllObras, modifyObra, darDeBajaObra, getObrasByEstado, getObraByID, getObrasByUbicacion} = require('../../controllers/obra/obra.controller.js')
+const {createObra, getAllObras, modifyObra,
+   darDeBajaObra, getObrasByEstado, getObraByID,
+    getObrasByUbicacion, archivarObra, getObrasArchivadas} = require('../../controllers/obra/obra.controller.js')
 const {  createTipoObra,
     modificarTipoDeObra,
     darDeBajaTipoObra,
@@ -23,12 +25,13 @@ const {
   guardarResultadoVision,
 } = require('../../controllers/obra/avance.controller.js');
 
-//rutas obra (FALTA MIDDLEWARE PARA VERIFICAR EL ROL)
+//rutas obra 
 router.post('/create', verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra)
 router.get('/getAll', getAllObras)
+router.get('/archivadas', getObrasArchivadas);
 router.put('/modificar/:id', validarFechasObra, modifyObra) 
 router.delete('/delete/:id', darDeBajaObra)
-
+router.put('/archivar/:id', verificarToken, archivarObra); 
 router.get('/getById/:id', getObraByID)
 router.get('/getByEstado/:estado', getObrasByEstado)
 router.get('/getByUbicacion/:ubicacion', getObrasByUbicacion)
