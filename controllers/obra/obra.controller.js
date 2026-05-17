@@ -179,11 +179,14 @@ const getObrasArchivadas = async (_req, res) => {
       WHERE o.archivado = TRUE
       ORDER BY o.id
     `);
+    
     return res.status(200).json({
       success: true,
       message: 'Obras archivadas obtenidas con éxito',
       obras: result.rows,
     });
+
+    
   } catch (error) {
     res.status(500).json({
       success: false,

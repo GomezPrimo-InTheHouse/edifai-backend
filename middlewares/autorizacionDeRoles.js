@@ -59,8 +59,10 @@ const verificarToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    // 401 = expirado o inválido → el interceptor del frontend lo captura y reintenta
-    return res.status(401).json({ error: 'Token inválido o expirado' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expirado' });
+    }
+    return res.status(403).json({ error: 'Token inválido' });
   }
 };
 
