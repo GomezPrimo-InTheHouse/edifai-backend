@@ -201,4 +201,5 @@ module.exports = {
   crearNotificacionInterna,
   marcarLeida,
   marcarTodasLeidas,
+  emitirSSE
 };

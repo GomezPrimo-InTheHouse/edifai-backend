@@ -150,30 +150,62 @@ const modifyObra = async (req, res) => {
 //getAll obras
 const getAllObras = async (_req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM obras WHERE archivado = FALSE ORDER BY id`);
+    const result = await pool.query(`
+      SELECT o.* 
+      FROM obras o
+      WHERE o.archivado = FALSE
+      AND o.estado_id != 21
+      ORDER BY o.id
+    `);
     return res.status(200).json({
       success: true,
       message: 'Obras obtenidas con éxito',
       obras: result.rows,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error al obtener obras', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener obras',
+      error: error.message
+    });
   }
 };
 
-// Nuevo endpoint para obtener solo archivadas:
 const getObrasArchivadas = async (_req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM obras WHERE archivado = TRUE ORDER BY id`);
+    const result = await pool.query(`
+      SELECT o.*
+      FROM obras o
+      WHERE o.archivado = TRUE
+      ORDER BY o.id
+    `);
     return res.status(200).json({
       success: true,
       message: 'Obras archivadas obtenidas con éxito',
       obras: result.rows,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error al obtener obras archivadas', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener obras archivadas',
+      error: error.message
+    });
   }
 };
+
+// // Nuevo endpoint para obtener solo archivadas:
+// const getObrasArchivadas = async (_req, res) => {
+//   try {
+//     const result = await pool.query(`SELECT * FROM obras WHERE archivado = TRUE ORDER BY id`);
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Obras archivadas obtenidas con éxito',
+//       obras: result.rows,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: 'Error al obtener obras archivadas', error: error.message });
+//   }
+// };
 
 
 //dar de baja obra ( no eliminar)
@@ -181,35 +213,26 @@ const darDeBajaObra = async (req, res) => {
   try {
     const { id } = req.params;
 
-    //validar existencia de obra
-
-    const existeObra = await pool.query('Select * from Obras where id = $1', [id])
-    if (existeObra.rows[0] === 0) {
+    const existeObra = await pool.query('SELECT * FROM obras WHERE id = $1', [id]);
+    if (existeObra.rows.length === 0) {
       return res.status(404).json({ message: 'Obra no encontrada' });
     }
 
-    //actualizar estado de obra
     const result = await pool.query(`
-    UPDATE Obras
-    SET estado_id = 2
-    WHERE id = $1
-    RETURNING *;
+      UPDATE obras SET estado_id = 22 WHERE id = $1 RETURNING *
     `, [id]);
 
     res.status(200).json({
       success: true,
       message: 'Obra dada de baja correctamente',
       obra: result.rows[0]
-    })
+    });
 
   } catch (error) {
     console.error('Error al dar de baja obra:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
-
   }
-
-
-}
+};
 
 //getObraByID
 const getObraByID = async (req, res) => {
