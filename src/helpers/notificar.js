@@ -31,6 +31,8 @@ const notificar = async ({ tipo, mensaje, usuario_id = null }) => {
       [tipo, mensaje, usuario_id]
     );
     const notificacion = result.rows[0];
+    console.log('📢 emitirSSE llamado, _emitirSSE es:', _emitirSSE ? 'función' : 'NULL');
+
     if (_emitirSSE) _emitirSSE(notificacion);
   } catch (err) {
     console.warn('⚠️  notificar() falló (no crítico):', err.message);
