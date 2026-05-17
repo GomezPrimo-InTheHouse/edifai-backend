@@ -5,7 +5,8 @@ const axios = require('axios');
 
 const MS_AUTH_URL =  'http://localhost:7001';
 
-  const logger = require('../../utils/logger/logger.js');
+const logger = require('../../utils/logger/logger.js');
+const { register: registerAuth } = require('../auth/register.controller.js'); // ajustá el path
 
 const {notificar} = require('../../src/helpers/notificar.js');
 
@@ -62,6 +63,8 @@ const getUsuarios = async (req, res) => {
 /**
  * POST /api/usuarios/
  */
+
+
 const createUsuario = async (req, res) => {
   const { nombre, email, password, rol_id, estado_id, usuario_creador_id } = req.body;
 
@@ -75,17 +78,33 @@ const createUsuario = async (req, res) => {
   try {
     logger.info(`Creando usuario: ${email}`);
 
-    const authResponse = await axios.post(`${MS_AUTH_URL}/auth/register`, {
-      nombre,
-      email,
-      password,
-      rol_id,
-      estado_id,
-      usuario_creador_id,
-    });
+    // Llamada directa en vez de HTTP
+    const mockReq = {
+      body: { nombre, email, password, rol_id, estado_id, usuario_creador_id },
+    };
 
-    // ✅ totp_seed extraído junto con el resto
-    const { user, qrCodeDataURL, message, totp_seed } = authResponse.data;
+    let authResult = null;
+    const mockRes = {
+      status: (code) => ({
+        json: (data) => {
+          authResult = { status: code, data };
+        },
+      }),
+      json: (data) => {
+        authResult = { status: 200, data };
+      },
+    };
+
+    await registerAuth(mockReq, mockRes);
+
+    if (!authResult || authResult.status >= 400) {
+      return res.status(authResult?.status || 500).json({
+        ok: false,
+        message: authResult?.data?.error || authResult?.data?.message || 'Error al crear usuario',
+      });
+    }
+
+    const { user, qrCodeDataURL, message, totp_seed } = authResult.data;
 
     logger.info(`Usuario creado correctamente: ${email}`);
 
@@ -100,25 +119,16 @@ const createUsuario = async (req, res) => {
       message,
       data: user,
       qrCodeDataURL,
-      totp_seed,    // ✅ ahora se incluye en la respuesta
+      totp_seed,
     });
 
   } catch (err) {
     logger.error({ err }, `Error al crear usuario: ${email}`);
-
     notificar({
       tipo: 'error_sistema',
       mensaje: `Error al crear usuario "${email}": ${err.message}`,
       usuario_id: null,
     });
-
-    if (err.response?.data) {
-      return res.status(err.response.status || 400).json({
-        ok: false,
-        message: err.response.data.error || err.response.data.message || 'Error al crear usuario',
-      });
-    }
-
     return res.status(500).json({
       ok: false,
       message: 'Error interno al crear usuario',
