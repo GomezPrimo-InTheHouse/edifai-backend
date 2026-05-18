@@ -1,9 +1,6 @@
-// materiales.controller.js - CRUD materiales + ajuste masivo de precios
-// TODO: Implementar controladores CRUD para materiales y ajuste masivo de precios
-const pool  = require('../../connection/db.js');
+const pool = require('../../connection/db.js');
 const { notificar } = require('../../src/helpers/notificar.js');
 
-// Obtiene todos los materiales
 const getAllMateriales = async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM materiales ORDER BY nombre ASC`);
@@ -14,7 +11,6 @@ const getAllMateriales = async (req, res) => {
   }
 };
 
-// Obtiene un material por ID
 const getMaterialById = async (req, res) => {
   const { id } = req.params;
   try {
@@ -27,7 +23,6 @@ const getMaterialById = async (req, res) => {
   }
 };
 
-// Crea un nuevo material
 const createMaterial = async (req, res) => {
   const {
     nombre, descripcion, tipo_material_id, unidad,
@@ -45,17 +40,15 @@ const createMaterial = async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [nombre, descripcion, tipo_material_id, unidad, stock_actual, precio_unitario, porcentaje_aumento_mensual, estado_id, imagen_url]
     );
-    await notificar({ tipo: 'material_creado', mensaje: `Nuevo material creado: "${nombre}"`, usuario_id: null });
+    await notificar({ tipo: 'material_creado', mensaje: `Material "${nombre}" fue creado`, usuario_id: null });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    notificar({ tipo: 'error_sistema', mensaje: `Error en createMaterial: ${error.message}`, usuario_id: null });
-      console.error('Error DETALLADO al crear material:', error.message, error.stack);
-
+    await notificar({ tipo: 'error_sistema', mensaje: `Error al crear material "${nombre}": ${error.message}`, usuario_id: null });
+    console.error('Error al crear material:', error.message, error.stack);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
-// Actualiza un material
 const updateMaterial = async (req, res) => {
   const { id } = req.params;
   const {
@@ -72,16 +65,18 @@ const updateMaterial = async (req, res) => {
        WHERE id=$10 RETURNING *`,
       [nombre, descripcion, tipo_material_id, unidad, stock_actual, precio_unitario, porcentaje_aumento_mensual, estado_id, imagen_url, id]
     );
-    await notificar({ tipo: 'material_modificado', mensaje: `Material #${id} fue modificado`, usuario_id: null });
     if (result.rows.length === 0)
       return res.status(404).json({ success: false, message: 'Material no encontrado' });
+
+    const nombreMaterial = result.rows[0].nombre;
+    await notificar({ tipo: 'material_modificado', mensaje: `Material "${nombreMaterial}" fue modificado`, usuario_id: null });
     res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
+    await notificar({ tipo: 'error_sistema', mensaje: `Error al modificar material #${id}: ${error.message}`, usuario_id: null });
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
-// Elimina un material — verifica que no esté en presupuestos activos
 const deleteMaterial = async (req, res) => {
   const { id } = req.params;
   try {
@@ -94,16 +89,18 @@ const deleteMaterial = async (req, res) => {
     if (enUso.rows.length > 0)
       return res.status(400).json({ success: false, message: 'No se puede eliminar: el material está en presupuestos activos.' });
 
+    const material = await pool.query(`SELECT nombre FROM materiales WHERE id = $1`, [id]);
+    const nombreMaterial = material.rows[0]?.nombre ?? `#${id}`;
+
     await pool.query(`DELETE FROM materiales WHERE id = $1`, [id]);
-    await notificar({ tipo: 'material_eliminado', mensaje: `Material #${id} fue eliminado`, usuario_id: null });
+    await notificar({ tipo: 'material_eliminado', mensaje: `Material "${nombreMaterial}" fue eliminado`, usuario_id: null });
     res.status(200).json({ success: true, message: 'Material eliminado correctamente.' });
   } catch (error) {
+    await notificar({ tipo: 'error_sistema', mensaje: `Error al eliminar material #${id}: ${error.message}`, usuario_id: null });
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
-// Ajuste masivo de precios — aplica un porcentaje a todos o a un tipo específico
-// Registra el historial y recalcula presupuestos NO confirmados
 const ajustePreciosMasivo = async (req, res) => {
   const { porcentaje, tipo_material_id, motivo, usuario_id } = req.body;
 
@@ -114,7 +111,6 @@ const ajustePreciosMasivo = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Obtiene materiales a ajustar
     const query = tipo_material_id
       ? `SELECT * FROM materiales WHERE tipo_material_id = $1`
       : `SELECT * FROM materiales`;
@@ -124,20 +120,17 @@ const ajustePreciosMasivo = async (req, res) => {
       const precioAnterior = parseFloat(material.precio_unitario);
       const precioNuevo = +(precioAnterior * (1 + porcentaje / 100)).toFixed(2);
 
-      // Actualiza precio del material
       await client.query(
         `UPDATE materiales SET precio_unitario = $1, updated_at = NOW() WHERE id = $2`,
         [precioNuevo, material.id]
       );
 
-      // Registra en historial_incremento_material
       await client.query(
         `INSERT INTO historial_incremento_material (material_id, precio_anterior, precio_nuevo, porcentaje_aplicado, motivo, usuario_id)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [material.id, precioAnterior, precioNuevo, porcentaje, motivo ?? null, usuario_id ?? null]
       );
 
-      // Recalcula presupuestos NO confirmados que usen este material
       const presupuestosActivos = await client.query(
         `SELECT pm.id, pm.presupuesto_id, pm.cantidad, pm.precio_unitario
          FROM presupuesto_materiales pm
@@ -148,17 +141,13 @@ const ajustePreciosMasivo = async (req, res) => {
       );
 
       for (const pm of presupuestosActivos.rows) {
-        const diferencia = +(
-          (precioNuevo - parseFloat(pm.precio_unitario)) * parseFloat(pm.cantidad)
-        ).toFixed(2);
+        const diferencia = +((precioNuevo - parseFloat(pm.precio_unitario)) * parseFloat(pm.cantidad)).toFixed(2);
 
-        // Actualiza precio en presupuesto_materiales
         await client.query(
           `UPDATE presupuesto_materiales SET precio_unitario = $1 WHERE id = $2`,
           [precioNuevo, pm.id]
         );
 
-        // Recalcula total del presupuesto
         await client.query(
           `UPDATE presupuestos SET total_estimado = (
             SELECT SUM(cantidad * precio_unitario) FROM presupuesto_materiales WHERE presupuesto_id = $1
@@ -166,7 +155,6 @@ const ajustePreciosMasivo = async (req, res) => {
           [pm.presupuesto_id]
         );
 
-        // Registra en historial_incremento_presupuesto
         await client.query(
           `INSERT INTO historial_incremento_presupuesto (presupuesto_id, material_id, precio_anterior, precio_nuevo, cantidad, diferencia_total)
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -176,11 +164,16 @@ const ajustePreciosMasivo = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    await notificar({ tipo: 'ajuste_precios', mensaje: `Ajuste masivo de precios aplicado`, usuario_id: null });
+    await notificar({
+      tipo: 'ajuste_precios',
+      mensaje: `Ajuste de precios del ${porcentaje}% aplicado a ${materiales.rows.length} material(es)${motivo ? ` — motivo: ${motivo}` : ''}`,
+      usuario_id: null,
+    });
     res.status(200).json({ success: true, message: `Precios ajustados correctamente en ${materiales.rows.length} material(es).` });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error en ajuste masivo:', error);
+    await notificar({ tipo: 'error_sistema', mensaje: `Error en ajuste masivo de precios: ${error.message}`, usuario_id: null });
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   } finally {
     client.release();
@@ -189,7 +182,6 @@ const ajustePreciosMasivo = async (req, res) => {
 
 const getEstadisticasMateriales = async (req, res) => {
   try {
-    // Materiales más utilizados en presupuestos
     const masUtilizados = await pool.query(`
       SELECT m.id, m.nombre, m.unidad,
              COUNT(pm.id) as veces_usado,
@@ -201,7 +193,6 @@ const getEstadisticasMateriales = async (req, res) => {
       LIMIT 5
     `);
 
-    // Top 5 materiales con mayor incremento de precio
     const masAumentaron = await pool.query(`
       SELECT m.id, m.nombre, m.precio_unitario,
              MIN(h.precio_anterior) as precio_inicial,
@@ -214,7 +205,6 @@ const getEstadisticasMateriales = async (req, res) => {
       LIMIT 5
     `);
 
-    // Top 5 con más stock y top 5 con menos stock
     const masStock = await pool.query(`
       SELECT id, nombre, unidad, stock_actual
       FROM materiales
@@ -243,8 +233,6 @@ const getEstadisticasMateriales = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
-
-
 
 module.exports = {
   getAllMateriales, getMaterialById, createMaterial,
