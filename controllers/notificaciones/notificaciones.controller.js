@@ -1,5 +1,5 @@
+const jwt = require('jsonwebtoken');
 const pool = require('../../connection/db');
-
 // Clientes SSE conectados: Map<userId, res[]>
 const sseClients = new Map();
 
