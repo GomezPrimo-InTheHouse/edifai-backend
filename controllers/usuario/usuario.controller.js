@@ -1,14 +1,14 @@
 // controllers/usuario.controller.js
 const bcrypt = require("bcryptjs");
-const pool = require("../../connection/db.js"); 
+const pool = require("../../connection/db.js");
 const axios = require('axios');
 
-const MS_AUTH_URL =  'http://localhost:7001';
+const MS_AUTH_URL = 'http://localhost:7001';
 
 const logger = require('../../utils/logger/logger.js');
 const { register: registerAuth } = require('../auth/register.controller.js'); // ajustá el path
 
-const {notificar} = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../src/helpers/notificar.js');
 
 //error handler para errores de PostgreSQL, en este caso : email duplicado (código 23505)
 function handlePgError(err, res) {
@@ -63,8 +63,6 @@ const getUsuarios = async (req, res) => {
 /**
  * POST /api/usuarios/
  */
-
-
 const createUsuario = async (req, res) => {
   const { nombre, email, password, rol_id, estado_id, usuario_creador_id } = req.body;
 
@@ -149,7 +147,7 @@ const updateUsuario = async (req, res) => {
     let passwordQuery = '';
     const values = [
       nombre || null,
-      email  || null,
+      email || null,
       rol_id || null,
       estado_id || null,
       id,
@@ -277,15 +275,15 @@ const updateUsuarioPassword = async (req, res) => {
 /**
  * DELETE /api/usuarios/:id
  */
- const deleteUsuario = async (req, res) => {
-    const user_id = parseInt(req.params.id, 10);
-    const estadoInactivoId = 2;
+const deleteUsuario = async (req, res) => {
+  const user_id = parseInt(req.params.id, 10);
+  const estadoInactivoId = 2;
 
-    if (!user_id) {
+  if (!user_id) {
     return res.status(400).json({ ok: false, message: 'Falta el id' });
-    }
+  }
 
-    try {
+  try {
     const userResult = await pool.query(
       `SELECT id FROM usuarios WHERE id = $1`,
       [user_id]
@@ -308,18 +306,20 @@ const updateUsuarioPassword = async (req, res) => {
       [estadoInactivoId, user_id]
     );
 
+    console.log('🗑️ deleteUsuario ejecutado, llamando notificar...');
     await notificar({
       tipo: 'baja_usuario',
       mensaje: `Usuario #${user_id} fue dado de baja`,
       usuario_id: null,
     });
+    console.log('✅ notificar() completado en deleteUsuario');
 
     return res.status(200).json({
       ok: true,
       message: 'Usuario desactivado correctamente',
     });
 
-    } catch (error) {
+  } catch (error) {
     console.error('Error al desactivar usuario:', error);
     notificar({
       tipo: 'error_sistema',
@@ -327,7 +327,7 @@ const updateUsuarioPassword = async (req, res) => {
       usuario_id: null,
     });
     return res.status(500).json({ ok: false, message: 'Error interno del servidor' });
-    }
+  }
 };
 
 
@@ -352,9 +352,9 @@ const regenerarTotp = async (req, res) => {
 
     // Generar nuevo TOTP
     const { generarTotp, generarQRCodeDataURL } = require('../../utils/auth/totp-util.js');
-    const totp         = generarTotp(usuario.email);
-    const totp_seed    = totp.base32;
-    const otpauth_url  = totp.otpauth_url;
+    const totp = generarTotp(usuario.email);
+    const totp_seed = totp.base32;
+    const otpauth_url = totp.otpauth_url;
     const qrCodeDataURL = await generarQRCodeDataURL(otpauth_url);
 
     // Actualizar el seed en la DB
