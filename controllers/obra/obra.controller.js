@@ -331,7 +331,7 @@ const ROLES_ADMIN = [1, 3, 4, 6];
 
 const archivarObra = async (req, res) => {
   const { id } = req.params;
-  const { archivar } = req.body; // true = archivar, false = desarchivar
+  const { archivar } = req.body;
   const rolId = req.user?.rol_id;
 
   if (!ROLES_ADMIN.includes(rolId)) {
@@ -345,22 +345,55 @@ const archivarObra = async (req, res) => {
     }
 
     // 1. Archivar obra
-    await pool.query('UPDATE obras SET archivado = $1 WHERE id = $2', [archivar, id]);
+    await pool.query(
+      'UPDATE obras SET archivado = $1, estado_id = $2 WHERE id = $3',
+      [archivar, archivar ? 21 : 18, id]
+    );
 
     // 2. Archivar labores de la obra
-    await pool.query('UPDATE labores SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+    await pool.query(
+      'UPDATE labores SET archivado = $1 WHERE obra_id = $2',
+      [archivar, id]
+    );
 
-    // 3. Archivar presupuestos de la obra
-    await pool.query('UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+    // 3. Archivar presupuestos con obra_id directo
+    await pool.query(
+      'UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2',
+      [archivar, id]
+    );
+
+    // 3b. Archivar presupuestos sin obra_id pero vinculados via labor
+    await pool.query(`
+      UPDATE presupuestos SET archivado = $1
+      WHERE obra_id IS NULL
+      AND labor_id IN (
+        SELECT id FROM labores WHERE obra_id = $2
+      )
+    `, [archivar, id]);
 
     // 4. Archivar presentismos de la obra
-    await pool.query('UPDATE presentismos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
+    await pool.query(
+      'UPDATE presentismos SET archivado = $1 WHERE obra_id = $2',
+      [archivar, id]
+    );
 
-    // 5. Archivar pagos via presupuestos de la obra
+    // 5. Archivar pagos via presupuestos con obra_id directo
     await pool.query(`
       UPDATE pagos SET archivado = $1
       WHERE presupuesto_id IN (
         SELECT id FROM presupuestos WHERE obra_id = $2
+      )
+    `, [archivar, id]);
+
+    // 5b. Archivar pagos via presupuestos sin obra_id (vinculados via labor)
+    await pool.query(`
+      UPDATE pagos SET archivado = $1
+      WHERE presupuesto_id IN (
+        SELECT id FROM presupuestos
+        WHERE obra_id IS NULL
+        AND labor_id IN (
+          SELECT id FROM labores WHERE obra_id = $2
+        )
       )
     `, [archivar, id]);
 
