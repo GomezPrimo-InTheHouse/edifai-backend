@@ -330,7 +330,7 @@
 // module.exports = { getMisObras, marcarPresentismo, getHistorial, getHistorialAdmin, getEstadisticas };
 
 const pool = require('../../connection/db.js');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 // GET /presentismo/mis-obras
 const getMisObras = async (req, res) => {

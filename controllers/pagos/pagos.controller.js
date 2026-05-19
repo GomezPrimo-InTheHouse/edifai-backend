@@ -1,5 +1,5 @@
 const pool = require('../../connection/db.js');
-const { notificar } = require('../../src/helpers/notificar');
+const { notificar } = require('../../helpers/notificar');
 
 const getAllPagos = async (req, res) => {
   try {

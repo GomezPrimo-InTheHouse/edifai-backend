@@ -26,7 +26,7 @@ app.use((req, res, next) => {
 
 // ── Inicializar SSE antes de las rutas ──
 const notifController = require('./controllers/notificaciones/notificaciones.controller');
-const { setEmitirSSE } = require('./src/helpers/notificar.js'); 
+const { setEmitirSSE } = require('./helpers/notificar.js'); 
 setEmitirSSE(notifController.emitirSSE);
 
 // ── Tanda 1 ──
@@ -54,7 +54,7 @@ app.use('/presupuestoMateriales', require('./routes/presupuestos/presupuestoMate
 app.use('/pagos',          require('./routes/pagos/pagos.routes.js'));
 app.use('/formasPago',     require('./routes/pagos/formasPago.routes.js'));
 
-// Health check
+// Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
   status:    'ok',
   version:   'monolito',

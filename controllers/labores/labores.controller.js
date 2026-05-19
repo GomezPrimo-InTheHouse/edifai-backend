@@ -1,7 +1,7 @@
 
 
 const pool = require('../../connection/db.js');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 // ── Helper: vincular trabajador + su equipo a una obra ────────
 const vincularEquipoAObra = async (client, trabajador_id, obra_id, fecha_desde) => {
