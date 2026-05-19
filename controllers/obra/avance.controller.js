@@ -147,7 +147,7 @@ const aprobarAvance = async (req, res) => {
        FROM avances_obra ao
        LEFT JOIN trabajadores t ON t.id = ao.trabajador_id
        LEFT JOIN labores      l ON l.id = ao.labor_id
-       WHERE ao.id = $1 FOR UPDATE`,
+       WHERE ao.id = $1`,
       [id]
     );
     if (avanceResult.rowCount === 0) {
@@ -269,7 +269,7 @@ const rechazarAvance = async (req, res) => {
        FROM avances_obra ao
        LEFT JOIN trabajadores t ON t.id = ao.trabajador_id
        LEFT JOIN labores      l ON l.id = ao.labor_id
-       WHERE ao.id = $1 FOR UPDATE`,
+       WHERE ao.id = $1`,
       [id]
     );
     if (avanceResult.rowCount === 0) {
