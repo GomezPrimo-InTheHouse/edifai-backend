@@ -10,7 +10,8 @@ const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 //controladores
 const {createObra, getAllObras, modifyObra,
    darDeBajaObra, getObrasByEstado, getObraByID,
-    getObrasByUbicacion, archivarObra, getObrasArchivadas} = require('../../controllers/obra/obra.controller.js')
+    getObrasByUbicacion, archivarObra, getObrasArchivadas, uploadImagenAvance} = require('../../controllers/obra/obra.controller.js')
+
 const {  createTipoObra,
     modificarTipoDeObra,
     darDeBajaTipoObra,
@@ -19,7 +20,6 @@ const {  createTipoObra,
 //controllers para avance de obras
 
 const multer = require('multer');
-const {uploadImagenAvance} = require('../../controllers/obra/uploadImagenAvance.controller.js')
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB para fotos de obra
