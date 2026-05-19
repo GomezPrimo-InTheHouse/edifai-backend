@@ -6,169 +6,101 @@ const createTrabajador = async (req, res) => {
 
   try {
     const {
-      // trabajador
-      nombre,
-      apellido,
-      dni,
-      telefono,
-      fecha_ingreso,
-      estado_id,
-      especialidad_id,
-      jefe_id,
-      usuario_creador_id,
-
-      // usuario a crear
-      email,
-      password, // opcional
+      nombre, apellido, dni, telefono, fecha_ingreso,
+      estado_id, especialidad_id, jefe_id, usuario_creador_id,
+      email, password,
+      // datos facturación
+      razon_social, cuit, condicion_iva, direccion_fiscal, cbu, alias_cbu,
     } = req.body;
 
-    // Validaciones mínimas
     if (!nombre || !apellido || !dni || !email || !usuario_creador_id) {
       return res.status(400).json({
         ok: false,
-        error:
-          "Faltan campos obligatorios: nombre, apellido, dni, email, usuario_creador_id",
+        error: 'Faltan campos obligatorios: nombre, apellido, dni, email, usuario_creador_id',
       });
     }
 
-    await client.query("BEGIN");
+    await client.query('BEGIN');
 
-    // DNI único
-    const dniExistente = await client.query(
-      "SELECT 1 FROM trabajadores WHERE dni = $1",
-      [dni]
-    );
+    const dniExistente = await client.query('SELECT 1 FROM trabajadores WHERE dni = $1', [dni]);
     if (dniExistente.rowCount > 0) {
-      await client.query("ROLLBACK");
-      return res
-        .status(409)
-        .json({ ok: false, error: "El DNI ya está registrado" });
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: 'El DNI ya está registrado' });
     }
 
-    // Email único (mensaje claro)
-    const emailExistente = await client.query(
-      "SELECT 1 FROM usuarios WHERE email = $1",
-      [email]
-    );
+    const emailExistente = await client.query('SELECT 1 FROM usuarios WHERE email = $1', [email]);
     if (emailExistente.rowCount > 0) {
-      await client.query("ROLLBACK");
-      return res
-        .status(409)
-        .json({ ok: false, error: "El email ya está registrado" });
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: 'El email ya está registrado' });
     }
 
-    // usuario creador existe
-    const usuarioCreador = await client.query(
-      "SELECT 1 FROM usuarios WHERE id = $1",
-      [usuario_creador_id]
-    );
+    const usuarioCreador = await client.query('SELECT 1 FROM usuarios WHERE id = $1', [usuario_creador_id]);
     if (usuarioCreador.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res
-        .status(404)
-        .json({ ok: false, error: "Usuario creador no encontrado" });
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, error: 'Usuario creador no encontrado' });
     }
 
-    // jefe_id valida contra trabajadores (FK real)
     if (jefe_id != null) {
-      const jefeExiste = await client.query(
-        "SELECT 1 FROM trabajadores WHERE id = $1",
-        [jefe_id]
-      );
+      const jefeExiste = await client.query('SELECT 1 FROM trabajadores WHERE id = $1', [jefe_id]);
       if (jefeExiste.rowCount === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({
-          ok: false,
-          error: "Jefe (trabajador) no encontrado",
-        });
+        await client.query('ROLLBACK');
+        return res.status(404).json({ ok: false, error: 'Jefe (trabajador) no encontrado' });
       }
     }
 
-    // Rol según regla:
-    // jefe_id NULL => trabajador jefe (rol_id 8)
-    // jefe_id NOT NULL => trabajador empleado (rol_id 7)
     const esJefe = jefe_id == null;
     const rol_id = esJefe ? 8 : 7;
-
-    // Password: si no viene, usar DNI
-    const plainPassword =
-      password != null && String(password).trim() !== ""
-        ? String(password)
-        : String(dni);
-
+    const plainPassword = password != null && String(password).trim() !== '' ? String(password) : String(dni);
     const passwordHash = await bcrypt.hash(plainPassword, 10);
 
-    // Crear usuario (SIN TOTP)
     const nuevoUsuario = await client.query(
-      `
-      INSERT INTO usuarios (nombre, email, password_hash, rol_id, estado_id, totp_seed, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NULL, now(), now())
-      RETURNING id, nombre, email, rol_id, estado_id, created_at, updated_at;
-      `,
+      `INSERT INTO usuarios (nombre, email, password_hash, rol_id, estado_id, totp_seed, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NULL, now(), now())
+       RETURNING id, nombre, email, rol_id, estado_id, created_at, updated_at`,
       [`${nombre} ${apellido}`, email, passwordHash, rol_id, estado_id ?? null]
     );
 
     const usuarioCreado = nuevoUsuario.rows[0];
 
-    // Crear trabajador vinculado al usuario
     const nuevoTrabajador = await client.query(
-      `
-      INSERT INTO trabajadores
-        (nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, 
-        especialidad_id, jefe_id, usuario_creador_id, created_at, updated_at)
-      VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11 , now(), null)
-      RETURNING *;
-      `,
+      `INSERT INTO trabajadores
+        (nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id,
+         especialidad_id, jefe_id, usuario_creador_id,
+         razon_social, cuit, condicion_iva, direccion_fiscal, cbu, alias_cbu,
+         created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now(),now())
+       RETURNING *`,
       [
-        nombre,
-        apellido,
-        dni,
-        email,
-        telefono ?? null,
-        fecha_ingreso ?? null,
-        estado_id ?? null,
-        usuarioCreado.id,
-        especialidad_id ?? null,
-        jefe_id ?? null,
-        usuario_creador_id,
+        nombre, apellido, dni, email, telefono ?? null,
+        fecha_ingreso ?? null, estado_id ?? null, usuarioCreado.id,
+        especialidad_id ?? null, jefe_id ?? null, usuario_creador_id,
+        razon_social ?? null, cuit ?? null, condicion_iva ?? null,
+        direccion_fiscal ?? null, cbu ?? null, alias_cbu ?? null,
       ]
     );
 
-    const trabajadorCreado = nuevoTrabajador.rows[0];
-
-    await client.query("COMMIT");
+    await client.query('COMMIT');
 
     return res.status(201).json({
       ok: true,
-      message: "Trabajador y usuario creados correctamente.",
+      message: 'Trabajador y usuario creados correctamente.',
       data: {
-        trabajador: trabajadorCreado,
+        trabajador: nuevoTrabajador.rows[0],
         usuario: usuarioCreado,
-        // no devolvemos el DNI/clave en claro, solo indicamos el criterio
-        password_inicial:
-          password != null && String(password).trim() !== "" ? null : "DNI",
+        password_inicial: password != null && String(password).trim() !== '' ? null : 'DNI',
       },
     });
   } catch (err) {
-    await client.query("ROLLBACK");
-
-    if (err && err.code === "23505") {
-      return res.status(409).json({
-        ok: false,
-        error: "Conflicto: email o dni ya existente (unique_violation).",
-      });
+    await client.query('ROLLBACK');
+    if (err?.code === '23505') {
+      return res.status(409).json({ ok: false, error: 'Conflicto: email o dni ya existente.' });
     }
-
-    console.error("Error createTrabajador:", err);
-    return res
-      .status(500)
-      .json({ ok: false, error: "Error al crear trabajador/usuario" });
+    console.error('Error createTrabajador:', err);
+    return res.status(500).json({ ok: false, error: 'Error al crear trabajador/usuario' });
   } finally {
     client.release();
   }
 };
-
 
 
 //obtener todos los trabajadores
@@ -265,12 +197,6 @@ const darDeBajaTrabajador = async (req, res) => {
 
 //marcar presentismo
 
-// {
-//   "obra_id": 1,
-//   "latitud": -32.4078,
-//   "longitud": -63.2421,
-//   "observaciones": "Ingreso registrado desde QR"
-// }
 
 const marcarPresentismo = async (req, res) => {
   const client = await pool.connect();
