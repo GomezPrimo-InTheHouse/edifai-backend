@@ -15,11 +15,11 @@ const {  createTipoObra,
     modificarTipoDeObra,
     darDeBajaTipoObra,
     getAllTipoDeObra } = require ('../../controllers/obra/tipo-obra.controller.js')
-    
+
 //controllers para avance de obras
 
 const multer = require('multer');
-const { uploadImagenAvance } = require('../../controllers/obra/uploadImagenAvance.controller');
+const { uploadImagenAvance } = require('../../controllers/obra/uploadImagenAvance.controller.js');
 
 const upload = multer({
   storage: multer.memoryStorage(),
