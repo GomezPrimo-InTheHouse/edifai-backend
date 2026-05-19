@@ -15,7 +15,21 @@ const {  createTipoObra,
     modificarTipoDeObra,
     darDeBajaTipoObra,
     getAllTipoDeObra } = require ('../../controllers/obra/tipo-obra.controller.js')
+    
 //controllers para avance de obras
+
+const multer = require('multer');
+const { uploadImagenAvance } = require('../../controllers/obra/uploadImagenAvance.controller');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB para fotos de obra
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes JPG, PNG o WebP'));
+  },
+});
 
 const {
   crearAvance,
@@ -56,6 +70,9 @@ router.get('/getByObra',         verificarToken, getAvancesByObra);
 // Ruta de uso interno — proteger con API key de microservicio cuando se implemente la IA
 // Por ahora queda disponible para pruebas, igual que el resto del sistema
 router.put('/:id/vision',        verificarToken, guardarResultadoVision);
+// En obra.routes.js — agregar
 
+
+router.post('/uploadImagenAvance', verificarToken, upload.single('imagen'), uploadImagenAvance);
 
 module.exports = router;
