@@ -240,7 +240,7 @@ const getDashboardTrabajador = async (req, res) => {
   try {
     // Obtener trabajador vinculado al usuario
     const trabajadorResult = await pool.query(
-      `SELECT id, nombre, apellido FROM trabajadores WHERE usuario_id = $1`,
+      `SELECT id, nombre, apellido, puntos FROM trabajadores WHERE usuario_id = $1`,
       [userId]
     );
 
