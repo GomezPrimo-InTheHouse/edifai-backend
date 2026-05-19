@@ -184,36 +184,57 @@ const darDeBajaTrabajador = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Verificar si tiene subordinados asignados
-    const subordinados = await pool.query(
-      `SELECT id FROM trabajadores WHERE jefe_id = $1`,
-      [id]
-    );
+    const existente = await pool.query('SELECT id, nombre, apellido FROM trabajadores WHERE id = $1', [id]);
+    if (existente.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Trabajador no encontrado.' });
+    }
+
+    const trabajador = existente.rows[0];
+
+    // Verificar subordinados
+    const subordinados = await pool.query('SELECT id FROM trabajadores WHERE jefe_id = $1', [id]);
     if (subordinados.rows.length > 0) {
       return res.status(400).json({
         ok: false,
-        message: `No se puede eliminar: el trabajador tiene ${subordinados.rows.length} subordinado(s) asignado(s).`,
+        message: `No se puede dar de baja: el trabajador tiene ${subordinados.rows.length} subordinado(s) asignado(s).`,
       });
     }
 
-    // Verificar si tiene labores asignadas
+    // Verificar labores activas
     const labores = await pool.query(
-      `SELECT id FROM labores WHERE trabajador_id = $1`,
+      `SELECT id FROM labores WHERE trabajador_id = $1 AND archivado = FALSE`,
       [id]
     );
     if (labores.rows.length > 0) {
       return res.status(400).json({
         ok: false,
-        message: `No se puede eliminar: el trabajador tiene ${labores.rows.length} labor(es) asignada(s).`,
+        message: `No se puede dar de baja: el trabajador tiene ${labores.rows.length} labor(es) activa(s) asignada(s).`,
       });
     }
 
-    // Si pasa las validaciones, eliminar
-    await pool.query(`DELETE FROM trabajadores WHERE id = $1`, [id]);
+    // Soft delete — cambiar estado a inactivo (estado_id = 2)
+    await pool.query(
+      `UPDATE trabajadores SET estado_id = 2, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
 
-    res.status(200).json({ ok: true, message: 'Trabajador eliminado correctamente.' });
+    // Desactivar usuario vinculado si existe
+    await pool.query(
+      `UPDATE usuarios SET estado_id = 2, updated_at = NOW() WHERE id = (
+        SELECT usuario_id FROM trabajadores WHERE id = $1
+      )`,
+      [id]
+    );
+
+    await notificar({
+      tipo: 'baja_trabajador',
+      mensaje: `Trabajador "${trabajador.nombre} ${trabajador.apellido}" fue dado de baja`,
+      usuario_id: null,
+    });
+
+    res.status(200).json({ ok: true, message: 'Trabajador dado de baja correctamente.' });
   } catch (error) {
-    console.error('Error al eliminar trabajador:', error);
+    console.error('Error al dar de baja trabajador:', error);
     res.status(500).json({ ok: false, message: 'Error interno del servidor.' });
   }
 };
