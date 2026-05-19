@@ -105,17 +105,40 @@ const createTrabajador = async (req, res) => {
 
 //obtener todos los trabajadores
 
-const getAllTrabajadores = async (req, res)=>{
-    try {
-        const result = await pool.query('SELECT * FROM trabajadores ORDER BY id');
-        return res.status(200).json(result.rows);
-        
-    } catch (error) {
-        console.error('Error al obtener trabajadores:', error);
-        return res.status(500).json({ error: 'Error al obtener trabajadores' });
-    }
-
-}
+const getAllTrabajadores = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        t.*,
+        -- Días marcados este mes
+        COUNT(DISTINCT DATE(p.fecha)) AS dias_marcados_mes,
+        -- Porcentaje de asistencia del mes (sobre días hábiles transcurridos)
+        ROUND(
+          COUNT(DISTINCT DATE(p.fecha))::numeric / NULLIF(
+            (SELECT COUNT(*)
+             FROM generate_series(
+               DATE_TRUNC('month', CURRENT_DATE),
+               CURRENT_DATE,
+               '1 day'::interval
+             ) AS gs(day)
+             WHERE EXTRACT(DOW FROM gs.day) NOT IN (0, 6)
+            ), 0
+          ) * 100, 0
+        ) AS porcentaje_asistencia_mes
+      FROM trabajadores t
+      LEFT JOIN presentismos p 
+        ON p.trabajador_id = t.id
+        AND DATE(p.fecha) >= DATE_TRUNC('month', CURRENT_DATE)
+        AND DATE(p.fecha) <= CURRENT_DATE
+      GROUP BY t.id
+      ORDER BY t.id
+    `);
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener trabajadores:', error);
+    return res.status(500).json({ error: 'Error al obtener trabajadores' });
+  }
+};
 
 //modificar un trabajador
 

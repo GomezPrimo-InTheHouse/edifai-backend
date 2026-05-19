@@ -2,7 +2,7 @@ const pool = require('../../connection/db.js');
 const getSupabase = require('../../connection/supabase');
 
 require('dotenv').config();
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 const createObra = async (req, res) => {
   try {

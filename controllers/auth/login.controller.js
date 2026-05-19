@@ -3,7 +3,7 @@
 
 const pool = require('../../connection/db.js');
 const jwt = require('jsonwebtoken');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 require('dotenv').config();
 

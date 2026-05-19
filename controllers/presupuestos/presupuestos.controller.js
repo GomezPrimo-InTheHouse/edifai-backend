@@ -1,7 +1,7 @@
 // presupuestos.controller.js - CRUD presupuestos + cambio de estado
 // TODO: Implementar controladores CRUD para presupuestos y cambio de estado
 const pool = require('../../connection/db.js');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 const getAllPresupuestos = async (req, res) => {
   try {

@@ -1,5 +1,5 @@
 const pool = require('../../connection/db.js');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 const getAllMateriales = async (req, res) => {
   try {

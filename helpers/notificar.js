@@ -16,7 +16,7 @@
 
 // module.exports = { notificar };
 
-const pool = require('../../connection/db');
+const pool = require('../connection/db');
 
 // Importar emitirSSE directamente para evitar llamada HTTP entre microservicios
 // que corren en el mismo proceso

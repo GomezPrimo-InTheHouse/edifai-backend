@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const pool = require("../../connection/db.js");
 const logger = require('../../utils/logger/logger.js');
 const { register: registerAuth } = require('../auth/register.controller.js');
-const { notificar } = require('../../src/helpers/notificar.js');
+const { notificar } = require('../../helpers/notificar.js');
 
 function handlePgError(err, res) {
   console.error("PG Error en usuario.controller:", err);
