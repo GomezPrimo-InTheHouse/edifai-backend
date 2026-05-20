@@ -1,7 +1,7 @@
 // routes/usuario.routes.js
 const express = require("express");
 const router = express.Router();
-
+const {verificarToken} = require('../../middlewares/autorizacionDeRoles.js')
 const {
   getUsuarios,
   getUsuarioById,
@@ -11,6 +11,11 @@ const {
   deleteUsuario,
   regenerarTotp,
 } = require("../../controllers/usuario/usuario.controller.js");
+ const { obtenerPreferencias, guardarPreferencias } = require('../../controllers/usuario/usuario.controller');
+
+// Agregar junto al resto de rutas protegidas
+router.get('/preferencias', verificarToken, obtenerPreferencias);
+router.put('/preferencias', verificarToken, guardarPreferencias);
 
 router.get("/", getUsuarios);
 router.get("/:id", getUsuarioById);
