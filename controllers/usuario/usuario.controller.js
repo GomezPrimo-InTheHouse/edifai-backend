@@ -219,8 +219,50 @@ const regenerarTotp = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Error interno al regenerar TOTP' });
   }
 };
+const obtenerPreferencias = async (req, res) => {
+  const { userId } = req.user;
+  try {
+    const result = await pool.query(
+      `SELECT preferencias, onboarding_completado FROM usuarios WHERE id = $1`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Error en obtenerPreferencias:', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+const guardarPreferencias = async (req, res) => {
+  const { userId } = req.user;
+  const { preferencias, onboarding_completado } = req.body;
+
+  try {
+    // Merge con preferencias existentes para no pisar keys no enviadas
+    const result = await pool.query(
+      `UPDATE usuarios 
+       SET preferencias = preferencias || $1::jsonb,
+           onboarding_completado = COALESCE($2, onboarding_completado),
+           updated_at = NOW()
+       WHERE id = $3
+       RETURNING preferencias, onboarding_completado`,
+      [JSON.stringify(preferencias ?? {}), onboarding_completado ?? null, userId]
+    );
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Error en guardarPreferencias:', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+
 
 module.exports = {
   getUsuarios, getUsuarioById, createUsuario,
   updateUsuario, updateUsuarioPassword, deleteUsuario, regenerarTotp,
+    obtenerPreferencias,
+  guardarPreferencias,
 };

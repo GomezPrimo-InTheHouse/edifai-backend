@@ -57,6 +57,8 @@ const login = async (req, res) => {
         email:     usuario.email,
         rol_id:    usuario.rol_id,
         rol_nombre: usuario.rol_nombre,
+        onboarding_completado: usuario.onboarding_completado ?? false,
+
       },
     });
 
