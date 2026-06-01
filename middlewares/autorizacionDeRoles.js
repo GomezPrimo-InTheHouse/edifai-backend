@@ -53,16 +53,15 @@ const verificarToken = (req, res, next) => {
   if (!token) {
     return res.status(401).json({ error: 'Token no proporcionado' });
   }
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     req.user = decoded;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expirado' });
+      return res.status(401).json({ message: 'Token expirado' });
     }
-    return res.status(403).json({ error: 'Token inválido' });
+    return res.status(403).json({ message: 'Token inválido' });
   }
 };
 
