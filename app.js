@@ -53,6 +53,7 @@ app.use('/presupuestos',   require('./routes/presupuestos/presupuestos.routes.js
 app.use('/presupuestoMateriales', require('./routes/presupuestos/presupuestoMateriales.routes.js'));
 app.use('/pagos',          require('./routes/pagos/pagos.routes.js'));
 app.use('/formasPago',     require('./routes/pagos/formasPago.routes.js'));
+app.use('/gastos',         require('./routes/gastos/gastos.routes.js'));
 
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({

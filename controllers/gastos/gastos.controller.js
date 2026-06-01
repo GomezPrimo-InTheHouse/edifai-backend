@@ -1,5 +1,5 @@
 // gastoImprevisto.controller.js
-const pool = require('../connection/db.js');
+const pool = require('../../connection/db.js');
 
 // ─────────────────────────────────────────────────────────────
 // CREAR
