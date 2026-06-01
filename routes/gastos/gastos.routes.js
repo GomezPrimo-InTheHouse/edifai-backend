@@ -1,7 +1,7 @@
-// gastoImprevisto.routes.js
+// gastos.routes.js
 const express = require('express');
 const router = express.Router();
-const { autorizacionDeRoles, verificarToken } = require('../middleware/auth.middleware.js');
+const { autorizacionDeRoles, verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 const {
   crearGastoImprevisto,
   obtenerGastosImprevistos,
@@ -9,7 +9,7 @@ const {
   obtenerGastoImprevistoPorId,
   actualizarEstadoGasto,
   eliminarGastoImprevisto,
-} = require('../controllers/gastoImprevisto.controller.js');
+} = require('../../controllers/gastos/gastos.controller.js');
 
 // Cualquier usuario autenticado puede crear y consultar
 router.post('/',                       verificarToken, crearGastoImprevisto);
