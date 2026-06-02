@@ -11,12 +11,13 @@ const createObra = async (req, res) => {
       nombre,
       descripcion,
       ubicacion,
-      latitud,        // ← nuevo
-      longitud,       // ← nuevo
+      latitud,
+      longitud,
       fecha_fin_estimado,
       fecha_inicio_estimado,
       tipo_obra_id,
       estado_id,
+      cliente_id,
     } = req.body;
 
     if (!nombre || !descripcion || !ubicacion ||
@@ -35,22 +36,22 @@ const createObra = async (req, res) => {
         usuario_creador_id, nombre, descripcion, ubicacion,
         latitud, longitud,
         fecha_fin_estimado, fecha_inicio_estimado,
-        tipo_obra_id, estado_id
+        tipo_obra_id, estado_id, cliente_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         usuario_creador_id, nombre, descripcion, ubicacion,
         latitud ?? null, longitud ?? null,
         fecha_fin_estimado, fecha_inicio_estimado,
-        tipo_obra_id, estado_id,
+        tipo_obra_id, estado_id, cliente_id ?? null,
       ]
     );
 
     await notificar({
       tipo: 'obra_creada',
       mensaje: `Nueva obra creada: "${nombre}"`,
-      usuario_id: null, // global — solo admins
+      usuario_id: null,
     });
 
     return res.status(200).json({
@@ -75,14 +76,15 @@ const modifyObra = async (req, res) => {
     nombre,
     descripcion,
     ubicacion,
-    latitud,        // ← nuevo
-    longitud,       // ← nuevo
+    latitud,
+    longitud,
     fecha_inicio_real,
     fecha_fin_real,
     fecha_inicio_estimado,
     fecha_fin_estimado,
     tipo_obra_id,
     estado_id,
+    cliente_id,
   } = req.body;
 
   try {
@@ -97,19 +99,20 @@ const modifyObra = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE obras SET
-        usuario_creador_id = $1,
-        nombre             = $2,
-        descripcion        = $3,
-        ubicacion          = $4,
-        latitud            = $5,
-        longitud           = $6,
-        fecha_inicio_real  = $7,
-        fecha_fin_real     = $8,
+        usuario_creador_id    = $1,
+        nombre                = $2,
+        descripcion           = $3,
+        ubicacion             = $4,
+        latitud               = $5,
+        longitud              = $6,
+        fecha_inicio_real     = $7,
+        fecha_fin_real        = $8,
         fecha_inicio_estimado = $9,
-        fecha_fin_estimado = $10,
-        tipo_obra_id       = $11,
-        estado_id          = $12
-      WHERE id = $13
+        fecha_fin_estimado    = $10,
+        tipo_obra_id          = $11,
+        estado_id             = $12,
+        cliente_id            = $13
+      WHERE id = $14
       RETURNING *`,
       [
         usuario_creador_id,
@@ -124,6 +127,7 @@ const modifyObra = async (req, res) => {
         fecha_fin_estimado || null,
         tipo_obra_id || null,
         estado_id || null,
+        cliente_id ?? null,
         id,
       ]
     );
@@ -131,7 +135,7 @@ const modifyObra = async (req, res) => {
     await notificar({
       tipo: 'obra_modificada',
       mensaje: `Obra #${id} fue modificada`,
-      usuario_id: null, // global — solo admins
+      usuario_id: null,
     });
 
     return res.status(200).json({
