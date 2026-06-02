@@ -95,21 +95,16 @@ const crearGastoImprevisto = async (req, res) => {
     }
     const obra = resObra.rows[0];
 
-    // Resolver deudor automático
-    let deudor_cliente_final = deudor_cliente_id ?? null;
-    let deudor_usuario_final = deudor_usuario_id ?? null;
-    let deudor_automatico = false;
+let deudor_cliente_final = deudor_cliente_id ?? null;
+let deudor_usuario_final = deudor_usuario_id ?? null;
+let deudor_automatico = false;
 
-    if (!deudor_cliente_id && !deudor_usuario_id) {
-      if (!obra.cliente_id) {
-        return res.status(400).json({
-          success: false,
-          message: 'La obra no tiene cliente asociado. Debe especificar un deudor manualmente.',
-        });
-      }
-      deudor_cliente_final = obra.cliente_id;
-      deudor_automatico = true;
-    }
+if (!deudor_cliente_id && !deudor_usuario_id) {
+  if (obra.cliente_id) {
+    deudor_cliente_final = obra.cliente_id;
+    deudor_automatico = true;
+  }
+}
 
     // Validar FK secundarias
     const resEsp = await pool.query(`SELECT id FROM especialidades WHERE id = $1`, [especialidad_id]);
@@ -323,6 +318,39 @@ const eliminarGastoImprevisto = async (req, res) => {
   }
 };
 
+const actualizarDeudorGasto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deudor_cliente_id, deudor_usuario_id } = req.body;
+
+    if (deudor_cliente_id && deudor_usuario_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se puede especificar deudor_cliente_id y deudor_usuario_id al mismo tiempo',
+      });
+    }
+
+    const resGasto = await pool.query(
+      `SELECT id FROM gastos_imprevistos WHERE id = $1 AND estado_id != 15`,
+      [id]
+    );
+    if (resGasto.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Gasto imprevisto no encontrado' });
+    }
+
+    const result = await pool.query(
+      `UPDATE gastos_imprevistos
+       SET deudor_cliente_id = $1, deudor_usuario_id = $2, updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [deudor_cliente_id ?? null, deudor_usuario_id ?? null, id]
+    );
+
+    return res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error al actualizar deudor', error: error.message });
+  }
+};
+
 module.exports = {
   crearGastoImprevisto,
   obtenerGastosImprevistos,
@@ -330,4 +358,5 @@ module.exports = {
   obtenerGastoImprevistoPorId,
   actualizarEstadoGasto,
   eliminarGastoImprevisto,
+  actualizarDeudorGasto,
 };
