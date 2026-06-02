@@ -9,6 +9,7 @@ const {
   obtenerGastoImprevistoPorId,
   actualizarEstadoGasto,
   eliminarGastoImprevisto,
+  actualizarDeudorGasto,
 } = require('../../controllers/gastos/gastos.controller.js');
 
 // Cualquier usuario autenticado puede crear y consultar
@@ -19,6 +20,7 @@ router.get('/:id',                     verificarToken, obtenerGastoImprevistoPor
 
 // Solo Admin puede cambiar estado o eliminar
 router.patch('/:id/estado',            autorizacionDeRoles(1), actualizarEstadoGasto);
+router.patch('/:id/deudor', verificarToken, actualizarDeudorGasto);
 router.delete('/:id',                  autorizacionDeRoles(1), eliminarGastoImprevisto);
 
 module.exports = router;
