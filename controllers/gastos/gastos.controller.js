@@ -1,15 +1,18 @@
 // gastoImprevisto.controller.js
 const pool = require('../../connection/db.js');
+const getSupabase = require('../../connection/supabase');
 
 // ─────────────────────────────────────────────────────────────
 // CREAR
 // ─────────────────────────────────────────────────────────────
 const crearGastoImprevisto = async (req, res) => {
+  const client = await pool.connect();
   try {
     const {
       obra_id, especialidad_id, descripcion, motivo,
-      monto, forma_pago_id, pagado_por_id, pagado_por_nombre,
+      monto, pagado_por_id, pagado_por_nombre,
       deudor_cliente_id, deudor_usuario_id, fecha,
+      ticket_url, formas_pago, // formas_pago = [{ forma_pago_id, monto }]
     } = req.body;
 
     // Campos obligatorios
@@ -17,27 +20,27 @@ const crearGastoImprevisto = async (req, res) => {
     if (!obra_id)         faltantes.push('obra_id');
     if (!especialidad_id) faltantes.push('especialidad_id');
     if (!descripcion)     faltantes.push('descripcion');
-    if (!motivo)          faltantes.push('motivo');
     if (!monto)           faltantes.push('monto');
-    if (!forma_pago_id)   faltantes.push('forma_pago_id');
     if (!fecha)           faltantes.push('fecha');
-
+    if (!formas_pago || !Array.isArray(formas_pago) || formas_pago.length === 0)
+      faltantes.push('formas_pago');
     if (faltantes.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Faltan campos obligatorios',
-        faltantes,
-      });
+      return res.status(400).json({ success: false, message: 'Faltan campos obligatorios', faltantes });
     }
 
     if (monto <= 0) {
+      return res.status(400).json({ success: false, message: 'El monto debe ser mayor a 0' });
+    }
+
+    // Validar que formas_pago sumen el monto total
+    const sumaFormasPago = formas_pago.reduce((acc, fp) => acc + Number(fp.monto), 0);
+    if (Math.abs(sumaFormasPago - Number(monto)) > 0.01) {
       return res.status(400).json({
         success: false,
-        message: 'El monto debe ser mayor a 0',
+        message: `Las formas de pago deben sumar el monto total. Suma actual: ${sumaFormasPago}, monto: ${monto}`,
       });
     }
 
-    // Validar pagado_por
     if (!pagado_por_id && !pagado_por_nombre) {
       return res.status(400).json({
         success: false,
@@ -46,7 +49,6 @@ const crearGastoImprevisto = async (req, res) => {
       });
     }
 
-    // Validar doble deudor
     if (deudor_cliente_id && deudor_usuario_id) {
       return res.status(400).json({
         success: false,
@@ -54,37 +56,18 @@ const crearGastoImprevisto = async (req, res) => {
       });
     }
 
-    // Resolver pagado_por_nombre → UUID
+    // Resolver pagado_por_nombre → id
     let pagador_id = pagado_por_id;
-
     if (!pagado_por_id && pagado_por_nombre) {
       const nombre = pagado_por_nombre.trim().toLowerCase();
-
       const [resU, resT] = await Promise.all([
-        pool.query(`SELECT id, nombre FROM usuarios    WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
-        pool.query(`SELECT id, nombre FROM trabajadores WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
+        pool.query(`SELECT id FROM usuarios     WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
+        pool.query(`SELECT id FROM trabajadores WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
       ]);
-
-      const matches = [
-        ...resU.rows.map(r => ({ ...r, origen: 'usuario' })),
-        ...resT.rows.map(r => ({ ...r, origen: 'trabajador' })),
-      ];
-
+      const matches = [...resU.rows, ...resT.rows];
       if (matches.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: `No se encontró ninguna persona con el nombre "${pagado_por_nombre}"`,
-        });
+        return res.status(404).json({ success: false, message: `No se encontró ninguna persona con el nombre "${pagado_por_nombre}"` });
       }
-
-      if (matches.length > 1) {
-        return res.status(409).json({
-          success: false,
-          message: `Se encontraron múltiples personas con el nombre "${pagado_por_nombre}". Indicá cuál es.`,
-          opciones: matches.map(m => ({ id: m.id, nombre: m.nombre, origen: m.origen })),
-        });
-      }
-
       pagador_id = matches[0].id;
     }
 
@@ -95,44 +78,58 @@ const crearGastoImprevisto = async (req, res) => {
     }
     const obra = resObra.rows[0];
 
-let deudor_cliente_final = deudor_cliente_id ?? null;
-let deudor_usuario_final = deudor_usuario_id ?? null;
-let deudor_automatico = false;
+    // Resolver deudor automático
+    let deudor_cliente_final = deudor_cliente_id ?? null;
+    let deudor_usuario_final = deudor_usuario_id ?? null;
+    let deudor_automatico = false;
+    if (!deudor_cliente_id && !deudor_usuario_id && obra.cliente_id) {
+      deudor_cliente_final = obra.cliente_id;
+      deudor_automatico = true;
+    }
 
-if (!deudor_cliente_id && !deudor_usuario_id) {
-  if (obra.cliente_id) {
-    deudor_cliente_final = obra.cliente_id;
-    deudor_automatico = true;
-  }
-}
-
-    // Validar FK secundarias
+    // Validar especialidad
     const resEsp = await pool.query(`SELECT id FROM especialidades WHERE id = $1`, [especialidad_id]);
     if (resEsp.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'La especialidad especificada no existe' });
     }
 
-    const resFP = await pool.query(`SELECT id FROM formas_pago WHERE id = $1`, [forma_pago_id]);
-    if (resFP.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'La forma de pago especificada no existe' });
+    // Validar formas_pago FK
+    for (const fp of formas_pago) {
+      const resFP = await pool.query(`SELECT id FROM formas_pago WHERE id = $1`, [fp.forma_pago_id]);
+      if (resFP.rows.length === 0) {
+        return res.status(404).json({ success: false, message: `La forma de pago ${fp.forma_pago_id} no existe` });
+      }
     }
 
-    // Insertar — estado_id 16 = activo/pendiente, siempre fijo al crear
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // Insertar gasto principal
+    const result = await client.query(
       `INSERT INTO gastos_imprevistos (
         obra_id, especialidad_id, descripcion, motivo, monto,
-        forma_pago_id, pagado_por_id,
-        deudor_cliente_id, deudor_usuario_id,
-        estado_id, fecha, deudor_automatico
+        pagado_por_id, deudor_cliente_id, deudor_usuario_id,
+        estado_id, fecha, deudor_automatico, ticket_url
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *`,
       [
-        obra_id, especialidad_id, descripcion, motivo, monto,
-        forma_pago_id, pagador_id,
-        deudor_cliente_final, deudor_usuario_final,
-        16, fecha, deudor_automatico,
+        obra_id, especialidad_id, descripcion, motivo ?? null, monto,
+        pagador_id, deudor_cliente_final, deudor_usuario_final,
+        16, fecha, deudor_automatico, ticket_url ?? null,
       ]
     );
+
+    const gastoId = result.rows[0].id;
+
+    // Insertar formas de pago
+    for (const fp of formas_pago) {
+      await client.query(
+        `INSERT INTO gastos_imprevistos_formas_pago (gasto_id, forma_pago_id, monto)
+         VALUES ($1, $2, $3)`,
+        [gastoId, fp.forma_pago_id, fp.monto]
+      );
+    }
+
+    await client.query('COMMIT');
 
     return res.status(201).json({
       success: true,
@@ -141,7 +138,10 @@ if (!deudor_cliente_id && !deudor_usuario_id) {
     });
 
   } catch (error) {
+    await client.query('ROLLBACK');
     return res.status(500).json({ success: false, message: 'Error al registrar el gasto imprevisto', error: error.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -152,24 +152,49 @@ const obtenerGastosImprevistos = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT gi.*,
-              o.nombre        AS obra_nombre,
-              e.nombre        AS especialidad_nombre,
-              fp.nombre       AS forma_pago_nombre,
-              est.nombre      AS estado_nombre
+              o.nombre   AS obra_nombre,
+              e.nombre   AS especialidad_nombre,
+              est.nombre AS estado_nombre,
+              COALESCE(u.nombre, tp.nombre || ' ' || tp.apellido) AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
-       LEFT JOIN formas_pago    fp  ON fp.id  = gi.forma_pago_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
+       LEFT JOIN usuarios       u   ON u.id   = gi.pagado_por_id
+       LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
        WHERE gi.estado_id != 15
        ORDER BY gi.fecha DESC`
     );
 
-    return res.status(200).json({ success: true, data: result.rows });
+    // Para cada gasto, traer sus formas de pago
+    const gastoIds = result.rows.map(g => g.id);
+    const formasPagoMap = {};
+
+    if (gastoIds.length > 0) {
+      const resFP = await pool.query(
+        `SELECT gifp.gasto_id, gifp.monto, fp.nombre AS forma_pago_nombre, gifp.forma_pago_id
+         FROM gastos_imprevistos_formas_pago gifp
+         LEFT JOIN formas_pago fp ON fp.id = gifp.forma_pago_id
+         WHERE gifp.gasto_id = ANY($1)`,
+        [gastoIds]
+      );
+      resFP.rows.forEach(row => {
+        if (!formasPagoMap[row.gasto_id]) formasPagoMap[row.gasto_id] = [];
+        formasPagoMap[row.gasto_id].push(row);
+      });
+    }
+
+    const data = result.rows.map(g => ({
+      ...g,
+      formas_pago: formasPagoMap[g.id] ?? [],
+    }));
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Error al obtener gastos imprevistos', error: error.message });
   }
 };
+
 
 // ─────────────────────────────────────────────────────────────
 // OBTENER POR OBRA
@@ -204,18 +229,18 @@ const obtenerGastosPorObra = async (req, res) => {
 const obtenerGastoImprevistoPorId = async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await pool.query(
       `SELECT gi.*,
               o.nombre   AS obra_nombre,
               e.nombre   AS especialidad_nombre,
-              fp.nombre  AS forma_pago_nombre,
-              est.nombre AS estado_nombre
+              est.nombre AS estado_nombre,
+              COALESCE(u.nombre, tp.nombre || ' ' || tp.apellido) AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
-       LEFT JOIN formas_pago    fp  ON fp.id  = gi.forma_pago_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
+       LEFT JOIN usuarios       u   ON u.id   = gi.pagado_por_id
+       LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
        WHERE gi.id = $1 AND gi.estado_id != 15`,
       [id]
     );
@@ -224,7 +249,18 @@ const obtenerGastoImprevistoPorId = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Gasto imprevisto no encontrado' });
     }
 
-    return res.status(200).json({ success: true, data: result.rows[0] });
+    const resFP = await pool.query(
+      `SELECT gifp.monto, gifp.forma_pago_id, fp.nombre AS forma_pago_nombre
+       FROM gastos_imprevistos_formas_pago gifp
+       LEFT JOIN formas_pago fp ON fp.id = gifp.forma_pago_id
+       WHERE gifp.gasto_id = $1`,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { ...result.rows[0], formas_pago: resFP.rows },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Error al obtener el gasto imprevisto', error: error.message });
   }
@@ -351,6 +387,42 @@ const actualizarDeudorGasto = async (req, res) => {
   }
 };
 
+
+
+
+const subirTicket = async (req, res) => {
+  const supabase = getSupabase();
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se recibió ningún archivo' });
+    }
+
+    const ext      = req.file.originalname.split('.').pop();
+    const fileName = `ticket-${Date.now()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from('ticket-gasto')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('Error subiendo ticket a Supabase:', error);
+      return res.status(500).json({ success: false, message: 'Error al subir el ticket' });
+    }
+
+    const { data } = supabase.storage
+      .from('ticket-gasto')
+      .getPublicUrl(fileName);
+
+    return res.status(200).json({ success: true, url: data.publicUrl });
+  } catch (err) {
+    console.error('Error en subirTicket:', err);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   crearGastoImprevisto,
   obtenerGastosImprevistos,
@@ -359,4 +431,5 @@ module.exports = {
   actualizarEstadoGasto,
   eliminarGastoImprevisto,
   actualizarDeudorGasto,
+  subirTicket
 };
