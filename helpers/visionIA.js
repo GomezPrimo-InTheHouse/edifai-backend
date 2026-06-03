@@ -79,6 +79,8 @@ Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación 
     });
 
     const data = await response.json();
+    console.log('🔍 Respuesta Anthropic Vision:', JSON.stringify(data, null, 2)); // ← agregar
+
     const resultado_vision = data.content?.[0]?.text ?? 'No se pudo analizar la imagen.';
 
     // Determinar cambio_detectado desde la recomendación
