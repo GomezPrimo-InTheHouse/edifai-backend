@@ -273,12 +273,18 @@ const getDashboardTrabajador = async (req, res) => {
         ORDER BY l.updated_at DESC
       `, [tid]),
 
-      // Equipo del trabajador (si es jefe, sus empleados; si es empleado, sus compañeros con mismo jefe)
-      pool.query(`
+     // Equipo del trabajador
+pool.query(`
   SELECT id, nombre, apellido
   FROM trabajadores
-  WHERE jefe_id = $1
-     OR (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1) AND id != $1 AND jefe_id IS NOT NULL)
+  WHERE 
+    -- Si soy jefe (jefe_id IS NULL): traer mis empleados
+    (jefe_id = $1)
+    OR
+    -- Si soy empleado: traer mi jefe + compañeros con mismo jefe
+    (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
+    OR
+    (id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
   ORDER BY nombre
 `, [tid]),
 
