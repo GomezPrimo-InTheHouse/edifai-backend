@@ -143,6 +143,13 @@ const marcarPresentismo = async (req, res) => {
       usuario_id: userId,
     });
 
+    // Notificar a admins (global)
+    await notificar({
+      tipo:       'presentismo',
+      mensaje:    `${trabajador.nombre} ${trabajador.apellido} marcó presentismo (+3 puntos, total: ${puntosActuales})`,
+      usuario_id: null,
+    });
+
     // ── Bonus: 3 presentismos en la semana (9 puntos semanales) ─
     if (diasSemana === 3) {
       await notificar({
