@@ -234,18 +234,15 @@ const getDashboardAdmin = async (req, res) => {
 // ── Dashboard Trabajador ──────────────────────────────────────
 const getDashboardTrabajador = async (req, res) => {
   const userId = req.user?.userId;
-
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
 
   try {
-    // Obtener trabajador vinculado al usuario
     const trabajadorResult = await pool.query(
       `SELECT id, nombre, apellido, puntos, especialidad_id, jefe_id FROM trabajadores WHERE usuario_id = $1`,
       [userId]
     );
-    if (trabajadorResult.rows.length === 0) {
+    if (trabajadorResult.rows.length === 0)
       return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
-    }
 
     const trabajador = trabajadorResult.rows[0];
     const tid = trabajador.id;
@@ -258,29 +255,20 @@ const getDashboardTrabajador = async (req, res) => {
       pagosResult,
       asistenciaMesResult,
       ultimosPagosResult,
-      equipoResult,
       obraActualResult,
+      equipoResult,
     ] = await Promise.all([
 
       // Mis labores activas
       pool.query(`
-        SELECT l.*, e.nombre AS estado_nombre
+        SELECT l.*, e.nombre AS estado_nombre, o.nombre AS obra_nombre, o.id AS obra_id
         FROM labores l
         JOIN labores_trabajadores lt ON lt.labor_id = l.id
         LEFT JOIN estados e ON e.id = l.estado_id
-        WHERE lt.trabajador_id = $1
-          AND l.estado_id != 2
+        LEFT JOIN obras o ON o.id = l.obra_id
+        WHERE lt.trabajador_id = $1 AND l.estado_id != 2
         ORDER BY l.updated_at DESC
       `, [tid]),
-
-      // Equipo del trabajador (si es jefe, sus empleados; si es empleado, sus compañeros con mismo jefe)
-      pool.query(`
-  SELECT id, nombre, apellido
-  FROM trabajadores
-  WHERE jefe_id = $1
-     OR (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1) AND id != $1 AND jefe_id IS NOT NULL)
-  ORDER BY nombre
-`, [tid]),
 
       // KPI pagos del mes
       pool.query(`
@@ -289,16 +277,14 @@ const getDashboardTrabajador = async (req, res) => {
           COALESCE(SUM(monto) FILTER (WHERE estado = 'Pagado'), 0) AS cobrado,
           COALESCE(SUM(monto) FILTER (WHERE estado = 'Pendiente'), 0) AS pendiente
         FROM pagos
-        WHERE trabajador_id = $1
-          AND DATE(fecha) BETWEEN $2 AND $3
+        WHERE trabajador_id = $1 AND DATE(fecha) BETWEEN $2 AND $3
       `, [tid, desdeMs, hastaMs]),
 
-      // Asistencia del mes — días marcados
+      // Asistencia del mes
       pool.query(`
         SELECT DATE(fecha) AS dia
         FROM presentismos
-        WHERE trabajador_id = $1
-          AND DATE(fecha) BETWEEN $2 AND $3
+        WHERE trabajador_id = $1 AND DATE(fecha) BETWEEN $2 AND $3
         ORDER BY dia ASC
       `, [tid, desdeMs, hastaMs]),
 
@@ -308,19 +294,28 @@ const getDashboardTrabajador = async (req, res) => {
         FROM pagos p
         LEFT JOIN formas_pago fp ON fp.id = p.forma_pago_id
         WHERE p.trabajador_id = $1
-        ORDER BY p.fecha DESC
-        LIMIT 5
+        ORDER BY p.fecha DESC LIMIT 5
       `, [tid]),
 
-      // Obra actual (última vinculación activa)
+      // Obra actual
       pool.query(`
         SELECT o.nombre AS obra_nombre, tob.rol_en_obra
         FROM trabajadores_obras tob
         JOIN obras o ON o.id = tob.obra_id
         WHERE tob.trabajador_id = $1
           AND (tob.fecha_hasta IS NULL OR tob.fecha_hasta >= CURRENT_DATE)
-        ORDER BY tob.fecha_desde DESC
-        LIMIT 1
+        ORDER BY tob.fecha_desde DESC LIMIT 1
+      `, [tid]),
+
+      // Equipo del trabajador
+      pool.query(`
+        SELECT id, nombre, apellido
+        FROM trabajadores
+        WHERE
+          jefe_id = $1
+          OR (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
+          OR (id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
+        ORDER BY nombre
       `, [tid]),
     ]);
 
@@ -329,15 +324,8 @@ const getDashboardTrabajador = async (req, res) => {
       new Date(r.dia).toISOString().split('T')[0]
     );
 
-    // Calcular días hábiles del mes para % asistencia
     const diasMes = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0).getDate();
     let diasHabiles = 0;
-    for (let d = 1; d <= diasHabiles + 1 && d <= diasMes; d++) {
-      const dia = new Date(mesActual.getFullYear(), mesActual.getMonth(), d);
-      if (dia.getDay() !== 0 && dia.getDay() !== 6) diasHabiles++;
-    }
-    // Contar días hábiles correctamente
-    diasHabiles = 0;
     for (let d = 1; d <= diasMes; d++) {
       const dia = new Date(mesActual.getFullYear(), mesActual.getMonth(), d);
       if (dia.getDay() !== 0 && dia.getDay() !== 6) diasHabiles++;
@@ -350,22 +338,25 @@ const getDashboardTrabajador = async (req, res) => {
     res.json({
       success: true,
       data: {
-        trabajador,
-        obra_actual: obraActualResult.rows[0] ?? null,
+        trabajador: {
+          ...trabajador,
+          equipo: equipoResult.rows,
+        },
+        obra_actual:     obraActualResult.rows[0] ?? null,
         kpis: {
           labores_activas: laboresResult.rows.length,
-          cobrado_mes: Number(pagos.cobrado),
-          pendiente_mes: Number(pagos.pendiente),
+          cobrado_mes:     Number(pagos.cobrado),
+          pendiente_mes:   Number(pagos.pendiente),
           tasa_asistencia: tasaAsistencia,
-          dias_marcados: diasMarcados.length,
-          dias_habiles: diasHabiles,
+          dias_marcados:   diasMarcados.length,
+          dias_habiles:    diasHabiles,
         },
-        labores: laboresResult.rows,
+        labores:         laboresResult.rows,
         dias_asistencia: diasMarcados,
-        ultimos_pagos: ultimosPagosResult.rows,
+        ultimos_pagos:   ultimosPagosResult.rows,
         mes_actual: {
           anio: mesActual.getFullYear(),
-          mes: mesActual.getMonth() + 1,
+          mes:  mesActual.getMonth() + 1,
           dias: diasMes,
         },
       },
