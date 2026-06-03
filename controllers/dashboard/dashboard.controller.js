@@ -93,8 +93,8 @@ const getDashboardAdmin = async (req, res) => {
       `),
 
       // Ausentes hoy
-    
-pool.query(`
+
+      pool.query(`
   SELECT DISTINCT ON (t.id)
     t.id,
     t.nombre,
@@ -180,47 +180,47 @@ pool.query(`
         periodo: { desde, hasta },
         kpis: {
           obras: {
-            total:   Number(obrasResult.rows[0].total),
+            total: Number(obrasResult.rows[0].total),
             activas: Number(obrasResult.rows[0].activas),
           },
           labores: {
-            total:   Number(laboresResult.rows[0].total),
+            total: Number(laboresResult.rows[0].total),
             activas: Number(laboresResult.rows[0].activas),
           },
           trabajadores: {
             total: Number(trabajadoresResult.rows[0].total),
           },
           presupuestos: {
-            total:       Number(presupuestosResult.rows[0].total),
+            total: Number(presupuestosResult.rows[0].total),
             confirmados: Number(presupuestosResult.rows[0].confirmados),
-            borradores:  Number(presupuestosResult.rows[0].borradores),
+            borradores: Number(presupuestosResult.rows[0].borradores),
           },
           pagos: {
-            total_pagos:    Number(pagosResult.rows[0].total_pagos),
-            total_pagado:   Number(pagosResult.rows[0].total_pagado),
+            total_pagos: Number(pagosResult.rows[0].total_pagos),
+            total_pagado: Number(pagosResult.rows[0].total_pagado),
             total_pendiente: Number(pagosResult.rows[0].total_pendiente),
           },
           asistencia: {
-            presentes_hoy:     Number(presentismo.presentes_hoy),
+            presentes_hoy: Number(presentismo.presentes_hoy),
             total_trabajadores: Number(presentismo.total_trabajadores),
-            tasa:              tasaAsistencia,
+            tasa: tasaAsistencia,
           },
           materiales_criticos: Number(materialesCriticosResult.rows.length),
-          logins_hoy:          Number(loginsResult.rows[0].total),
+          logins_hoy: Number(loginsResult.rows[0].total),
         },
-        ausentes_hoy:        ausentesResult.rows,
+        ausentes_hoy: ausentesResult.rows,
         materiales_criticos: materialesCriticosResult.rows,
-        pagos_evolucion:     pagosEvolucionResult.rows.map(r => ({
-          mes:   r.mes,
+        pagos_evolucion: pagosEvolucionResult.rows.map(r => ({
+          mes: r.mes,
           total: Number(r.total),
         })),
-        obras_por_estado:    obrasPorEstadoResult.rows.map(r => ({
+        obras_por_estado: obrasPorEstadoResult.rows.map(r => ({
           estado: r.estado ?? 'Sin estado',
-          total:  Number(r.total),
+          total: Number(r.total),
         })),
         labores_por_progreso: laboresPorProgresoResult.rows.map(r => ({
           estado: r.estado ?? 'Sin estado',
-          total:  Number(r.total),
+          total: Number(r.total),
         })),
         actividad_reciente: actividadRecienteResult.rows,
       },
@@ -240,10 +240,9 @@ const getDashboardTrabajador = async (req, res) => {
   try {
     // Obtener trabajador vinculado al usuario
     const trabajadorResult = await pool.query(
-      `SELECT id, nombre, apellido, puntos FROM trabajadores WHERE usuario_id = $1`,
+      `SELECT id, nombre, apellido, puntos, especialidad_id, jefe_id FROM trabajadores WHERE usuario_id = $1`,
       [userId]
     );
-
     if (trabajadorResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
     }
@@ -259,6 +258,7 @@ const getDashboardTrabajador = async (req, res) => {
       pagosResult,
       asistenciaMesResult,
       ultimosPagosResult,
+      equipoResult,
       obraActualResult,
     ] = await Promise.all([
 
@@ -272,6 +272,15 @@ const getDashboardTrabajador = async (req, res) => {
           AND l.estado_id != 2
         ORDER BY l.updated_at DESC
       `, [tid]),
+
+      // Equipo del trabajador (si es jefe, sus empleados; si es empleado, sus compañeros con mismo jefe)
+      pool.query(`
+  SELECT id, nombre, apellido
+  FROM trabajadores
+  WHERE jefe_id = $1
+     OR (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1) AND id != $1 AND jefe_id IS NOT NULL)
+  ORDER BY nombre
+`, [tid]),
 
       // KPI pagos del mes
       pool.query(`
@@ -338,29 +347,32 @@ const getDashboardTrabajador = async (req, res) => {
       ? Math.round((diasMarcados.length / diasHabiles) * 100)
       : 0;
 
-    res.json({
-      success: true,
-      data: {
-        trabajador,
-        obra_actual: obraActualResult.rows[0] ?? null,
-        kpis: {
-          labores_activas: laboresResult.rows.length,
-          cobrado_mes:     Number(pagos.cobrado),
-          pendiente_mes:   Number(pagos.pendiente),
-          tasa_asistencia: tasaAsistencia,
-          dias_marcados:   diasMarcados.length,
-          dias_habiles:    diasHabiles,
-        },
-        labores:          laboresResult.rows,
-        dias_asistencia:  diasMarcados,
-        ultimos_pagos:    ultimosPagosResult.rows,
-        mes_actual: {
-          anio: mesActual.getFullYear(),
-          mes:  mesActual.getMonth() + 1,
-          dias: diasMes,
-        },
-      },
-    });
+res.json({
+  success: true,
+  data: {
+    trabajador: {
+      ...trabajador,
+      equipo: equipoResult.rows,
+    },
+    obra_actual: obraActualResult.rows[0] ?? null,
+    kpis: {
+      labores_activas: laboresResult.rows.length,
+      cobrado_mes:     Number(pagos.cobrado),
+      pendiente_mes:   Number(pagos.pendiente),
+      tasa_asistencia: tasaAsistencia,
+      dias_marcados:   diasMarcados.length,
+      dias_habiles:    diasHabiles,
+    },
+    labores:         laboresResult.rows,
+    dias_asistencia: diasMarcados,
+    ultimos_pagos:   ultimosPagosResult.rows,
+    mes_actual: {
+      anio: mesActual.getFullYear(),
+      mes:  mesActual.getMonth() + 1,
+      dias: diasMes,
+    },
+  },
+});
   } catch (error) {
     console.error('Error getDashboardTrabajador:', error.message);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
