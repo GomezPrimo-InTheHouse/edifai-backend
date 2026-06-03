@@ -2,6 +2,10 @@
 const pool = require('../../connection/db.js');
 const getSupabase = require('../../connection/supabase');
 
+function formatMoney(n) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+}
+
 // ─────────────────────────────────────────────────────────────
 // CREAR
 // ─────────────────────────────────────────────────────────────
@@ -130,6 +134,29 @@ const crearGastoImprevisto = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+// Notificar a admins
+await notificar({
+  tipo: 'gasto_imprevisto_creado',
+  mensaje: `Nuevo gasto imprevisto de ${formatMoney(monto)} registrado en "${resObra.rows[0].nombre ?? 'obra'}"`,
+  usuario_id: null,
+});
+
+// Notificar al pagador si tiene usuario_id
+const resPagador = await pool.query(
+  `SELECT usuario_id FROM trabajadores WHERE id = $1
+   UNION
+   SELECT id AS usuario_id FROM usuarios WHERE id = $1`,
+  [pagador_id]
+);
+if (resPagador.rows[0]?.usuario_id) {
+  await notificar({
+    tipo: 'gasto_imprevisto_creado',
+    mensaje: `Se registró un gasto imprevisto a tu nombre por ${formatMoney(monto)}`,
+    usuario_id: resPagador.rows[0].usuario_id,
+  });
+}
+    
 
     return res.status(201).json({
       success: true,
