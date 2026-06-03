@@ -80,7 +80,8 @@ Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación 
 
     const data = await response.json();
     console.log('🔍 Respuesta Anthropic Vision:', JSON.stringify(data, null, 2)); // ← agregar
-
+    console.log('API KEY presente:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('API KEY primeros chars:', process.env.ANTHROPIC_API_KEY?.slice(0, 15));
     const resultado_vision = data.content?.[0]?.text ?? 'No se pudo analizar la imagen.';
 
     // Determinar cambio_detectado desde la recomendación
