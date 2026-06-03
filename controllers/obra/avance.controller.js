@@ -1,5 +1,7 @@
 const pool = require('../../connection/db.js');
 const { notificar } = require('../../helpers/notificar.js');
+// Al inicio del archivo, agregar:
+const { analyzeAvanceImage } = require('../../helpers/visionIA');
 
 const ESTADO_LABOR = {
   PLANIFICADA:  10,
@@ -104,12 +106,18 @@ const crearAvance = async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Notificar a admins — usuario_id null = solo admins lo ven
+    // Notificar a admins
     await notificar({
       tipo:       'avance_creado',
       mensaje:    `${trabajador.nombre} ${trabajador.apellido} registró un avance en la labor "${labor.nombre}"`,
       usuario_id: null,
     });
+
+    // Disparar análisis de visión IA en background si hay imagen
+    if (imagen_url) {
+      const avanceId = insertResult.rows[0].id;
+      setImmediate(() => analyzeAvanceImage(avanceId, imagen_url, labor_id));
+    }
 
     return res.status(201).json({ success: true, data: insertResult.rows[0] });
 
