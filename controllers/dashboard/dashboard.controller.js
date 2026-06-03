@@ -273,18 +273,12 @@ const getDashboardTrabajador = async (req, res) => {
         ORDER BY l.updated_at DESC
       `, [tid]),
 
-     // Equipo del trabajador
-pool.query(`
+      // Equipo del trabajador (si es jefe, sus empleados; si es empleado, sus compañeros con mismo jefe)
+      pool.query(`
   SELECT id, nombre, apellido
   FROM trabajadores
-  WHERE 
-    -- Si soy jefe (jefe_id IS NULL): traer mis empleados
-    (jefe_id = $1)
-    OR
-    -- Si soy empleado: traer mi jefe + compañeros con mismo jefe
-    (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
-    OR
-    (id = (SELECT jefe_id FROM trabajadores WHERE id = $1 AND jefe_id IS NOT NULL))
+  WHERE jefe_id = $1
+     OR (jefe_id = (SELECT jefe_id FROM trabajadores WHERE id = $1) AND id != $1 AND jefe_id IS NOT NULL)
   ORDER BY nombre
 `, [tid]),
 
@@ -353,32 +347,29 @@ pool.query(`
       ? Math.round((diasMarcados.length / diasHabiles) * 100)
       : 0;
 
-res.json({
-  success: true,
-  data: {
-    trabajador: {
-      ...trabajador,
-      equipo: equipoResult.rows,
-    },
-    obra_actual: obraActualResult.rows[0] ?? null,
-    kpis: {
-      labores_activas: laboresResult.rows.length,
-      cobrado_mes:     Number(pagos.cobrado),
-      pendiente_mes:   Number(pagos.pendiente),
-      tasa_asistencia: tasaAsistencia,
-      dias_marcados:   diasMarcados.length,
-      dias_habiles:    diasHabiles,
-    },
-    labores:         laboresResult.rows,
-    dias_asistencia: diasMarcados,
-    ultimos_pagos:   ultimosPagosResult.rows,
-    mes_actual: {
-      anio: mesActual.getFullYear(),
-      mes:  mesActual.getMonth() + 1,
-      dias: diasMes,
-    },
-  },
-});
+    res.json({
+      success: true,
+      data: {
+        trabajador,
+        obra_actual: obraActualResult.rows[0] ?? null,
+        kpis: {
+          labores_activas: laboresResult.rows.length,
+          cobrado_mes: Number(pagos.cobrado),
+          pendiente_mes: Number(pagos.pendiente),
+          tasa_asistencia: tasaAsistencia,
+          dias_marcados: diasMarcados.length,
+          dias_habiles: diasHabiles,
+        },
+        labores: laboresResult.rows,
+        dias_asistencia: diasMarcados,
+        ultimos_pagos: ultimosPagosResult.rows,
+        mes_actual: {
+          anio: mesActual.getFullYear(),
+          mes: mesActual.getMonth() + 1,
+          dias: diasMes,
+        },
+      },
+    });
   } catch (error) {
     console.error('Error getDashboardTrabajador:', error.message);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
