@@ -77,6 +77,7 @@ Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación 
         messages:   [{ role: 'user', content }],
       }),
     });
+    
 
     const data = await response.json();
     console.log('🔍 Respuesta Anthropic Vision:', JSON.stringify(data, null, 2)); // ← agregar
