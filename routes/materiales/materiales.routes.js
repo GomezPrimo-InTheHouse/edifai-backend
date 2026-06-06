@@ -8,7 +8,7 @@ const {
   getEstadisticasMateriales, // nuevo controlador para estadísticas
 } = require('../../controllers/materiales/materiales.controller.js');
 const multer = require('multer');
-const { uploadImagenMaterial } = require('../../controllers/materiales/uploadImagen.controller');
+const { uploadImagenMaterial } = require('../../controllers/materiales/uploadImagen.controller.js');
 
 const upload = multer({
   storage: multer.memoryStorage(),

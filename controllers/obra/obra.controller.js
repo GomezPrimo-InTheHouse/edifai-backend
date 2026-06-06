@@ -1,13 +1,480 @@
+// const pool = require('../../connection/db.js');
+// const getSupabase = require('../../connection/supabase');
+
+// require('dotenv').config();
+// const { notificar } = require('../../helpers/notificar.js');
+
+// const createObra = async (req, res) => {
+//   try {
+//     const {
+//       usuario_creador_id,
+//       nombre,
+//       descripcion,
+//       ubicacion,
+//       latitud,
+//       longitud,
+//       fecha_fin_estimado,
+//       fecha_inicio_estimado,
+//       tipo_obra_id,
+//       estado_id,
+//       cliente_id,
+//     } = req.body;
+
+//     if (!nombre || !descripcion || !ubicacion ||
+//       !fecha_fin_estimado || !fecha_inicio_estimado ||
+//       !tipo_obra_id || !estado_id || !usuario_creador_id) {
+//       return res.status(400).json({ message: 'Faltan datos para crear la obra' });
+//     }
+
+//     const tipoObra = await pool.query('SELECT * FROM tipos_de_obra WHERE id = $1', [tipo_obra_id]);
+//     if (tipoObra.rows.length === 0) {
+//       return res.status(400).json({ message: 'Tipo de obra no existente' });
+//     }
+
+//     const result = await pool.query(
+//       `INSERT INTO obras (
+//         usuario_creador_id, nombre, descripcion, ubicacion,
+//         latitud, longitud,
+//         fecha_fin_estimado, fecha_inicio_estimado,
+//         tipo_obra_id, estado_id, cliente_id
+//       )
+//       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+//       RETURNING *`,
+//       [
+//         usuario_creador_id, nombre, descripcion, ubicacion,
+//         latitud ?? null, longitud ?? null,
+//         fecha_fin_estimado, fecha_inicio_estimado,
+//         tipo_obra_id, estado_id, cliente_id ?? null,
+//       ]
+//     );
+
+//     await notificar({
+//       tipo: 'obra_creada',
+//       mensaje: `Nueva obra creada: "${nombre}"`,
+//       usuario_id: null,
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Obra creada con éxito',
+//       obra: result.rows[0],
+//     });
+//   } catch (error) {
+//     notificar({
+//       tipo: 'error_sistema',
+//       mensaje: `Error al crear obra: ${error.message}`,
+//       usuario_id: null,
+//     });
+//     res.status(500).json({ success: false, message: 'Error al crear obra', error: error.message });
+//   }
+// };
+
+// const modifyObra = async (req, res) => {
+//   const { id } = req.params;
+//   const {
+//     usuario_creador_id,
+//     nombre,
+//     descripcion,
+//     ubicacion,
+//     latitud,
+//     longitud,
+//     fecha_inicio_real,
+//     fecha_fin_real,
+//     fecha_inicio_estimado,
+//     fecha_fin_estimado,
+//     tipo_obra_id,
+//     estado_id,
+//     cliente_id,
+//   } = req.body;
+
+//   try {
+//     const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+//     if (obraExistente.rows.length === 0) {
+//       return res.status(404).json({ error: 'Obra no encontrada' });
+//     }
+
+//     if (!nombre) {
+//       return res.status(400).json({ error: 'Faltan datos obligatorios (nombre)' });
+//     }
+
+//     const result = await pool.query(
+//       `UPDATE obras SET
+//         usuario_creador_id    = $1,
+//         nombre                = $2,
+//         descripcion           = $3,
+//         ubicacion             = $4,
+//         latitud               = $5,
+//         longitud              = $6,
+//         fecha_inicio_real     = $7,
+//         fecha_fin_real        = $8,
+//         fecha_inicio_estimado = $9,
+//         fecha_fin_estimado    = $10,
+//         tipo_obra_id          = $11,
+//         estado_id             = $12,
+//         cliente_id            = $13
+//       WHERE id = $14
+//       RETURNING *`,
+//       [
+//         usuario_creador_id,
+//         nombre,
+//         descripcion || null,
+//         ubicacion || null,
+//         latitud ?? null,
+//         longitud ?? null,
+//         fecha_inicio_real || null,
+//         fecha_fin_real || null,
+//         fecha_inicio_estimado || null,
+//         fecha_fin_estimado || null,
+//         tipo_obra_id || null,
+//         estado_id || null,
+//         cliente_id ?? null,
+//         id,
+//       ]
+//     );
+
+//     await notificar({
+//       tipo: 'obra_modificada',
+//       mensaje: `Obra #${id} fue modificada`,
+//       usuario_id: null,
+//     });
+
+//     return res.status(200).json({
+//       obra: result.rows[0],
+//       message: 'Obra actualizada correctamente',
+//     });
+//   } catch (error) {
+//     console.error('Error al modificar obra:', error);
+//     notificar({
+//       tipo: 'error_sistema',
+//       mensaje: `Error al modificar obra #${id}: ${error.message}`,
+//       usuario_id: null,
+//     });
+//     return res.status(500).json({ error: 'Error interno del servidor' });
+//   }
+// };
+
+// //getAll obras
+// const getAllObras = async (_req, res) => {
+//   try {
+//     const result = await pool.query(`
+//       SELECT o.* 
+//       FROM obras o
+//       WHERE o.archivado = FALSE
+//       AND o.estado_id != 21
+//       ORDER BY o.id
+//     `);
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Obras obtenidas con éxito',
+//       obras: result.rows,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error al obtener obras',
+//       error: error.message
+//     });
+//   }
+// };
+
+// const getObrasArchivadas = async (_req, res) => {
+//   try {
+//     const result = await pool.query(`
+//       SELECT o.*
+//       FROM obras o
+//       WHERE o.archivado = TRUE
+//       ORDER BY o.id
+//     `);
+    
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Obras archivadas obtenidas con éxito',
+//       obras: result.rows,
+//     });
+
+    
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error al obtener obras archivadas',
+//       error: error.message
+//     });
+//   }
+// };
+
+// // // Nuevo endpoint para obtener solo archivadas:
+// // const getObrasArchivadas = async (_req, res) => {
+// //   try {
+// //     const result = await pool.query(`SELECT * FROM obras WHERE archivado = TRUE ORDER BY id`);
+// //     return res.status(200).json({
+// //       success: true,
+// //       message: 'Obras archivadas obtenidas con éxito',
+// //       obras: result.rows,
+// //     });
+// //   } catch (error) {
+// //     res.status(500).json({ success: false, message: 'Error al obtener obras archivadas', error: error.message });
+// //   }
+// // };
+
+
+// //dar de baja obra ( no eliminar)
+// const darDeBajaObra = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const existeObra = await pool.query('SELECT * FROM obras WHERE id = $1', [id]);
+//     if (existeObra.rows.length === 0) {
+//       return res.status(404).json({ message: 'Obra no encontrada' });
+//     }
+
+//     const result = await pool.query(`
+//       UPDATE obras SET estado_id = 22 WHERE id = $1 RETURNING *
+//     `, [id]);
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Obra dada de baja correctamente',
+//       obra: result.rows[0]
+//     });
+
+//   } catch (error) {
+//     console.error('Error al dar de baja obra:', error);
+//     return res.status(500).json({ error: 'Error interno del servidor' });
+//   }
+// };
+
+// //getObraByID
+// const getObraByID = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const obra = await pool.query('SELECT * FROM Obras WHERE id = $1', [id])
+//     if (obra.rows[0] === 0) {
+//       return res.status(404).json({ message: 'Obra no encontrada' });
+//     }
+//     res.status(200).json({
+//       success: true,
+//       message: 'Obra encontrada correctamente',
+//       obra: obra.rows[0]
+//     })
+
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error interno del servidor',
+//       error: error.message
+//     })
+//   }
+// }
+
+
+// const getObrasByUbicacion = async (req, res) => {
+//   try {
+//     const { ubicacion } = req.params
+
+//     //buscar dentro de atributo 'ubicacion' si contiene la ubicacion obtenida por parametros
+//     const obras = await pool.query('SELECT * FROM Obras WHERE ubicacion ILIKE $1', [`%${ubicacion}%`])
+//     if (obras.rows[0] === 0) {
+//       return res.status(404).json({ message: 'No hay obras en la ubicación solicitada' })
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Obras encontradas correctamente',
+//       obras: obras.rows
+//     })
+
+//   } catch (error) {
+
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error interno del servidor',
+//       error: error.message
+//     })
+
+//   }
+// }
+
+// const getObrasByEstado = async (req, res) => {
+//   try {
+//     const { estado } = req.params
+
+//     //buscar en la tabla estados, cual id corresponde al estado obtenido por parametros
+//     // luego asignarlo a la constante idObtenido.
+//     const estadoId = await pool.query('SELECT id FROM Estados WHERE nombre = $1', [estado])
+
+//     if (estadoId.rows[0] === 0) {
+//       return res.status(404).json({ message: 'No existe el estado proporcionado' })
+//     }
+
+//     const idObtenido = estadoId.rows[0].id
+//     //ahora se busca dentor de la tabla Obras, todas las obras que esten con el estado proporcionado por parametros
+
+//     const obras = await pool.query('SELECT * FROM Obras WHERE estado_id = $1', [idObtenido])
+
+//     //ver si hay obras con el estado proporcionado, caso contrario devolver un status 200, pero con un mensaje de no hay obras con el estado solicitado
+//     if (obras.rows[0] === 0) {
+//       return res.status(200).json({ message: 'No hay obras con el estado solicitado' })
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Obras encontradas correctamente',
+//       obras: obras.rows
+//     })
+
+
+
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error interno del servidor',
+//       error: error.message
+//     })
+//   }
+// }
+
+// const ROLES_ADMIN = [1, 3, 4, 6];
+
+// const archivarObra = async (req, res) => {
+//   const { id } = req.params;
+//   const { archivar } = req.body;
+//   const rolId = req.user?.rol_id;
+
+//   if (!ROLES_ADMIN.includes(rolId)) {
+//     return res.status(403).json({ error: 'No tenés permisos para realizar esta acción' });
+//   }
+
+//   try {
+//     const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+//     if (obraExistente.rows.length === 0) {
+//       return res.status(404).json({ error: 'Obra no encontrada' });
+//     }
+
+//     // 1. Archivar obra
+//     await pool.query(
+//       'UPDATE obras SET archivado = $1, estado_id = $2 WHERE id = $3',
+//       [archivar, archivar ? 21 : 18, id]
+//     );
+
+//     // 2. Archivar labores de la obra
+//     await pool.query(
+//       'UPDATE labores SET archivado = $1 WHERE obra_id = $2',
+//       [archivar, id]
+//     );
+
+//     // 3. Archivar presupuestos con obra_id directo
+//     await pool.query(
+//       'UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2',
+//       [archivar, id]
+//     );
+
+//     // 3b. Archivar presupuestos sin obra_id pero vinculados via labor
+//     await pool.query(`
+//       UPDATE presupuestos SET archivado = $1
+//       WHERE obra_id IS NULL
+//       AND labor_id IN (
+//         SELECT id FROM labores WHERE obra_id = $2
+//       )
+//     `, [archivar, id]);
+
+//     // 4. Archivar presentismos de la obra
+//     await pool.query(
+//       'UPDATE presentismos SET archivado = $1 WHERE obra_id = $2',
+//       [archivar, id]
+//     );
+
+//     // 5. Archivar pagos via presupuestos con obra_id directo
+//     await pool.query(`
+//       UPDATE pagos SET archivado = $1
+//       WHERE presupuesto_id IN (
+//         SELECT id FROM presupuestos WHERE obra_id = $2
+//       )
+//     `, [archivar, id]);
+
+//     // 5b. Archivar pagos via presupuestos sin obra_id (vinculados via labor)
+//     await pool.query(`
+//       UPDATE pagos SET archivado = $1
+//       WHERE presupuesto_id IN (
+//         SELECT id FROM presupuestos
+//         WHERE obra_id IS NULL
+//         AND labor_id IN (
+//           SELECT id FROM labores WHERE obra_id = $2
+//         )
+//       )
+//     `, [archivar, id]);
+
+//     await notificar({
+//       tipo: archivar ? 'obra_archivada' : 'obra_desarchivada',
+//       mensaje: `Obra #${id} fue ${archivar ? 'archivada' : 'desarchivada'}`,
+//       usuario_id: null,
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: `Obra ${archivar ? 'archivada' : 'desarchivada'} correctamente`,
+//     });
+//   } catch (error) {
+//     console.error('Error al archivar obra:', error);
+//     return res.status(500).json({ error: 'Error interno del servidor' });
+//   }
+// };
+
+
+// const uploadImagenAvance = async (req, res) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ error: 'No se recibió ningún archivo' });
+//     }
+
+//     const supabase = getSupabase();
+//     const ext = req.file.originalname.split('.').pop();
+//     const fileName = `avance-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+//     const { error } = await supabase.storage
+//       .from('avances')
+//       .upload(fileName, req.file.buffer, {
+//         contentType: req.file.mimetype,
+//         upsert: false,
+//       });
+
+//     if (error) {
+//       console.error('Error subiendo a Supabase:', error);
+//       return res.status(500).json({ error: 'Error al subir la imagen' });
+//     }
+
+//     const { data } = supabase.storage.from('avances').getPublicUrl(fileName);
+//     return res.status(200).json({ success: true, url: data.publicUrl });
+//   } catch (err) {
+//     console.error('Error en uploadImagenAvance:', err);
+//     return res.status(500).json({ error: 'Error interno del servidor' });
+//   }
+// };
+
+
+
+// module.exports = {
+//   createObra,
+//   getAllObras,
+//   darDeBajaObra,
+//   getObraByID,
+//   modifyObra,
+//   getObrasByUbicacion,
+//   getObrasByEstado,
+//   archivarObra,
+//   getObrasArchivadas,
+//   uploadImagenAvance
+// }   
+
 const pool = require('../../connection/db.js');
 const getSupabase = require('../../connection/supabase');
 
 require('dotenv').config();
 const { notificar } = require('../../helpers/notificar.js');
+const { getFiltro, ROL_ADMIN_PRIVADO, ROLES_ADMIN } = require('../../middlewares/filtrarPorPropietario.js');
 
 const createObra = async (req, res) => {
   try {
     const {
-      usuario_creador_id,
       nombre,
       descripcion,
       ubicacion,
@@ -20,9 +487,12 @@ const createObra = async (req, res) => {
       cliente_id,
     } = req.body;
 
+    const usuario_creador_id = req.user.userId;
+    const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
+
     if (!nombre || !descripcion || !ubicacion ||
       !fecha_fin_estimado || !fecha_inicio_estimado ||
-      !tipo_obra_id || !estado_id || !usuario_creador_id) {
+      !tipo_obra_id || !estado_id) {
       return res.status(400).json({ message: 'Faltan datos para crear la obra' });
     }
 
@@ -36,15 +506,15 @@ const createObra = async (req, res) => {
         usuario_creador_id, nombre, descripcion, ubicacion,
         latitud, longitud,
         fecha_fin_estimado, fecha_inicio_estimado,
-        tipo_obra_id, estado_id, cliente_id
+        tipo_obra_id, estado_id, cliente_id, propietario_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
         usuario_creador_id, nombre, descripcion, ubicacion,
         latitud ?? null, longitud ?? null,
         fecha_fin_estimado, fecha_inicio_estimado,
-        tipo_obra_id, estado_id, cliente_id ?? null,
+        tipo_obra_id, estado_id, cliente_id ?? null, propietario_id,
       ]
     );
 
@@ -72,7 +542,6 @@ const createObra = async (req, res) => {
 const modifyObra = async (req, res) => {
   const { id } = req.params;
   const {
-    usuario_creador_id,
     nombre,
     descripcion,
     ubicacion,
@@ -88,14 +557,22 @@ const modifyObra = async (req, res) => {
   } = req.body;
 
   try {
-    const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+    const obraExistente = await pool.query('SELECT id, propietario_id FROM obras WHERE id = $1', [id]);
     if (obraExistente.rows.length === 0) {
       return res.status(404).json({ error: 'Obra no encontrada' });
+    }
+
+    // Verificar propiedad si es admin_privado
+    const obra = obraExistente.rows[0];
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && obra.propietario_id !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta obra' });
     }
 
     if (!nombre) {
       return res.status(400).json({ error: 'Faltan datos obligatorios (nombre)' });
     }
+
+    const usuario_creador_id = req.user.userId;
 
     const result = await pool.query(
       `UPDATE obras SET
@@ -153,16 +630,19 @@ const modifyObra = async (req, res) => {
   }
 };
 
-//getAll obras
-const getAllObras = async (_req, res) => {
+const getAllObras = async (req, res) => {
   try {
+    const { where, params } = getFiltro(req);
+
     const result = await pool.query(`
       SELECT o.* 
       FROM obras o
       WHERE o.archivado = FALSE
       AND o.estado_id != 21
+      ${where}
       ORDER BY o.id
-    `);
+    `, params);
+
     return res.status(200).json({
       success: true,
       message: 'Obras obtenidas con éxito',
@@ -177,22 +657,23 @@ const getAllObras = async (_req, res) => {
   }
 };
 
-const getObrasArchivadas = async (_req, res) => {
+const getObrasArchivadas = async (req, res) => {
   try {
+    const { where, params } = getFiltro(req);
+
     const result = await pool.query(`
       SELECT o.*
       FROM obras o
       WHERE o.archivado = TRUE
+      ${where}
       ORDER BY o.id
-    `);
-    
+    `, params);
+
     return res.status(200).json({
       success: true,
       message: 'Obras archivadas obtenidas con éxito',
       obras: result.rows,
     });
-
-    
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -202,29 +683,18 @@ const getObrasArchivadas = async (_req, res) => {
   }
 };
 
-// // Nuevo endpoint para obtener solo archivadas:
-// const getObrasArchivadas = async (_req, res) => {
-//   try {
-//     const result = await pool.query(`SELECT * FROM obras WHERE archivado = TRUE ORDER BY id`);
-//     return res.status(200).json({
-//       success: true,
-//       message: 'Obras archivadas obtenidas con éxito',
-//       obras: result.rows,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, message: 'Error al obtener obras archivadas', error: error.message });
-//   }
-// };
-
-
-//dar de baja obra ( no eliminar)
 const darDeBajaObra = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existeObra = await pool.query('SELECT * FROM obras WHERE id = $1', [id]);
+    const existeObra = await pool.query('SELECT id, propietario_id FROM obras WHERE id = $1', [id]);
     if (existeObra.rows.length === 0) {
       return res.status(404).json({ message: 'Obra no encontrada' });
+    }
+
+    const obra = existeObra.rows[0];
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && obra.propietario_id !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta obra' });
     }
 
     const result = await pool.query(`
@@ -243,163 +713,137 @@ const darDeBajaObra = async (req, res) => {
   }
 };
 
-//getObraByID
 const getObraByID = async (req, res) => {
   try {
     const { id } = req.params;
-    const obra = await pool.query('SELECT * FROM Obras WHERE id = $1', [id])
-    if (obra.rows[0] === 0) {
+    const obra = await pool.query('SELECT * FROM obras WHERE id = $1', [id]);
+
+    if (obra.rows.length === 0) {
       return res.status(404).json({ message: 'Obra no encontrada' });
     }
+
+    const registro = obra.rows[0];
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && registro.propietario_id !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta obra' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Obra encontrada correctamente',
-      obra: obra.rows[0]
-    })
-
+      obra: registro,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
       error: error.message
-    })
+    });
   }
-}
-
+};
 
 const getObrasByUbicacion = async (req, res) => {
   try {
-    const { ubicacion } = req.params
+    const { ubicacion } = req.params;
+    const { where, params } = getFiltro(req);
 
-    //buscar dentro de atributo 'ubicacion' si contiene la ubicacion obtenida por parametros
-    const obras = await pool.query('SELECT * FROM Obras WHERE ubicacion ILIKE $1', [`%${ubicacion}%`])
-    if (obras.rows[0] === 0) {
-      return res.status(404).json({ message: 'No hay obras en la ubicación solicitada' })
-    }
+    const obras = await pool.query(
+      `SELECT * FROM obras WHERE ubicacion ILIKE $${params.length + 1} ${where}`,
+      [...params, `%${ubicacion}%`]
+    );
 
     res.status(200).json({
       success: true,
       message: 'Obras encontradas correctamente',
       obras: obras.rows
-    })
-
+    });
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
       error: error.message
-    })
-
+    });
   }
-}
+};
 
 const getObrasByEstado = async (req, res) => {
   try {
-    const { estado } = req.params
+    const { estado } = req.params;
+    const { where, params } = getFiltro(req);
 
-    //buscar en la tabla estados, cual id corresponde al estado obtenido por parametros
-    // luego asignarlo a la constante idObtenido.
-    const estadoId = await pool.query('SELECT id FROM Estados WHERE nombre = $1', [estado])
-
-    if (estadoId.rows[0] === 0) {
-      return res.status(404).json({ message: 'No existe el estado proporcionado' })
+    const estadoId = await pool.query('SELECT id FROM estados WHERE nombre = $1', [estado]);
+    if (estadoId.rows.length === 0) {
+      return res.status(404).json({ message: 'No existe el estado proporcionado' });
     }
 
-    const idObtenido = estadoId.rows[0].id
-    //ahora se busca dentor de la tabla Obras, todas las obras que esten con el estado proporcionado por parametros
+    const idObtenido = estadoId.rows[0].id;
 
-    const obras = await pool.query('SELECT * FROM Obras WHERE estado_id = $1', [idObtenido])
-
-    //ver si hay obras con el estado proporcionado, caso contrario devolver un status 200, pero con un mensaje de no hay obras con el estado solicitado
-    if (obras.rows[0] === 0) {
-      return res.status(200).json({ message: 'No hay obras con el estado solicitado' })
-    }
+    const obras = await pool.query(
+      `SELECT * FROM obras WHERE estado_id = $${params.length + 1} ${where}`,
+      [...params, idObtenido]
+    );
 
     res.status(200).json({
       success: true,
       message: 'Obras encontradas correctamente',
       obras: obras.rows
-    })
-
-
-
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
       error: error.message
-    })
+    });
   }
-}
-
-const ROLES_ADMIN = [1, 3, 4, 6];
+};
 
 const archivarObra = async (req, res) => {
   const { id } = req.params;
   const { archivar } = req.body;
   const rolId = req.user?.rol_id;
 
-  if (!ROLES_ADMIN.includes(rolId)) {
+  if (!ROLES_ADMIN.includes(rolId) && rolId !== ROL_ADMIN_PRIVADO) {
     return res.status(403).json({ error: 'No tenés permisos para realizar esta acción' });
   }
 
   try {
-    const obraExistente = await pool.query('SELECT id FROM obras WHERE id = $1', [id]);
+    const obraExistente = await pool.query('SELECT id, propietario_id FROM obras WHERE id = $1', [id]);
     if (obraExistente.rows.length === 0) {
       return res.status(404).json({ error: 'Obra no encontrada' });
     }
 
-    // 1. Archivar obra
+    const obra = obraExistente.rows[0];
+    if (rolId === ROL_ADMIN_PRIVADO && obra.propietario_id !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta obra' });
+    }
+
     await pool.query(
       'UPDATE obras SET archivado = $1, estado_id = $2 WHERE id = $3',
       [archivar, archivar ? 21 : 18, id]
     );
 
-    // 2. Archivar labores de la obra
-    await pool.query(
-      'UPDATE labores SET archivado = $1 WHERE obra_id = $2',
-      [archivar, id]
-    );
+    await pool.query('UPDATE labores SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
 
-    // 3. Archivar presupuestos con obra_id directo
-    await pool.query(
-      'UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2',
-      [archivar, id]
-    );
+    await pool.query('UPDATE presupuestos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
 
-    // 3b. Archivar presupuestos sin obra_id pero vinculados via labor
     await pool.query(`
       UPDATE presupuestos SET archivado = $1
       WHERE obra_id IS NULL
-      AND labor_id IN (
-        SELECT id FROM labores WHERE obra_id = $2
-      )
+      AND labor_id IN (SELECT id FROM labores WHERE obra_id = $2)
     `, [archivar, id]);
 
-    // 4. Archivar presentismos de la obra
-    await pool.query(
-      'UPDATE presentismos SET archivado = $1 WHERE obra_id = $2',
-      [archivar, id]
-    );
+    await pool.query('UPDATE presentismos SET archivado = $1 WHERE obra_id = $2', [archivar, id]);
 
-    // 5. Archivar pagos via presupuestos con obra_id directo
     await pool.query(`
       UPDATE pagos SET archivado = $1
-      WHERE presupuesto_id IN (
-        SELECT id FROM presupuestos WHERE obra_id = $2
-      )
+      WHERE presupuesto_id IN (SELECT id FROM presupuestos WHERE obra_id = $2)
     `, [archivar, id]);
 
-    // 5b. Archivar pagos via presupuestos sin obra_id (vinculados via labor)
     await pool.query(`
       UPDATE pagos SET archivado = $1
       WHERE presupuesto_id IN (
         SELECT id FROM presupuestos
         WHERE obra_id IS NULL
-        AND labor_id IN (
-          SELECT id FROM labores WHERE obra_id = $2
-        )
+        AND labor_id IN (SELECT id FROM labores WHERE obra_id = $2)
       )
     `, [archivar, id]);
 
@@ -418,7 +862,6 @@ const archivarObra = async (req, res) => {
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
-
 
 const uploadImagenAvance = async (req, res) => {
   try {
@@ -450,8 +893,6 @@ const uploadImagenAvance = async (req, res) => {
   }
 };
 
-
-
 module.exports = {
   createObra,
   getAllObras,
@@ -462,5 +903,5 @@ module.exports = {
   getObrasByEstado,
   archivarObra,
   getObrasArchivadas,
-  uploadImagenAvance
-}   
+  uploadImagenAvance,
+};
