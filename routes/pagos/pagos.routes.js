@@ -5,13 +5,15 @@ const {
   getEstadisticasPagos
 } = require('../../controllers/pagos/pagos.controller.js');
 
-router.get('/getAll', getAllPagos);
-router.get('/getById/:id', getPagoById);
-router.get('/getByTrabajador/:trabajador_id', getPagosByTrabajador);
-router.get('/getByPresupuesto/:presupuesto_id', getPagosByPresupuesto);
-router.post('/create', createPago);
-router.put('/modificar/:id', updatePago);
-router.put('/cambiarEstado/:id', cambiarEstadoPago);
-router.delete('/delete/:id', deletePago);
-router.get('/estadisticas', getEstadisticasPagos);
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
+
+router.get('/getAll', verificarToken, getAllPagos);
+router.get('/getById/:id', verificarToken, getPagoById);
+router.get('/getByTrabajador/:trabajador_id', verificarToken, getPagosByTrabajador);
+router.get('/getByPresupuesto/:presupuesto_id', verificarToken, getPagosByPresupuesto);
+router.post('/create', verificarToken, createPago);
+router.put('/modificar/:id', verificarToken, updatePago);
+router.put('/cambiarEstado/:id', verificarToken, cambiarEstadoPago);
+router.delete('/delete/:id', verificarToken, deletePago);
+router.get('/estadisticas', verificarToken, getEstadisticasPagos);
 module.exports = router;

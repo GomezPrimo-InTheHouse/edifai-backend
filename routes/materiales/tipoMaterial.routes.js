@@ -5,8 +5,10 @@ const {
   getAllTiposMaterial, createTipoMaterial, deleteTipoMaterial,
 } = require('../../controllers/materiales/tipoMaterial.controller.js');
 
-router.get('/getAll', getAllTiposMaterial);
-router.post('/create', createTipoMaterial);
-router.delete('/delete/:id', deleteTipoMaterial);
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
+
+router.get('/getAll', verificarToken, getAllTiposMaterial);
+router.post('/create', verificarToken, createTipoMaterial);
+router.delete('/delete/:id', verificarToken, deleteTipoMaterial);
 
 module.exports = router;

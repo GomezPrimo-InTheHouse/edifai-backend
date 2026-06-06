@@ -1,5 +1,6 @@
 const Express = require('express');
 const router = Express.Router();
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 
 const {
   getAllTrabajadores,
@@ -12,13 +13,13 @@ const {
   getJefesConEquipoPorEspecialidad,
 } = require('../../controllers/trabajador/trabajador.controller.js');
 
-router.get('/getAll',                              getAllTrabajadores);
-router.post('/marcarPresentismo',                  marcarPresentismo);
-router.post('/crear',                              createTrabajador);
-router.get('/getByEspecialidad/:especialidad_id',  getTrabajadoresByEspecialidad);  // ← antes de /:id
-router.get('/getJefesConEquipo/:especialidad_id',  getJefesConEquipoPorEspecialidad); // ← antes de /:id
-router.put('/modificar/:id',                       modificarTrabajador);
-router.delete('/eliminar/:id',                     darDeBajaTrabajador);
-router.get('/:id',                                 getTrabajadorById);  // ← siempre al final
+router.get('/getAll',                              verificarToken, getAllTrabajadores);
+router.post('/marcarPresentismo',                  verificarToken, marcarPresentismo);
+router.post('/crear',                              verificarToken, createTrabajador);
+router.get('/getByEspecialidad/:especialidad_id',  verificarToken, getTrabajadoresByEspecialidad);  // ← antes de /:id
+router.get('/getJefesConEquipo/:especialidad_id',  verificarToken, getJefesConEquipoPorEspecialidad); // ← antes de /:id
+router.put('/modificar/:id',                       verificarToken, modificarTrabajador);
+router.delete('/eliminar/:id',                     verificarToken, darDeBajaTrabajador);
+router.get('/:id',                                 verificarToken, getTrabajadorById);  // ← siempre al final
 
 module.exports = router;

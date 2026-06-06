@@ -10,10 +10,12 @@ const { obtenerEspecialidades,
 
 
 
-router.get('/getAll', obtenerEspecialidades);
-router.put('/modificar/:id', modificarEspecialidad);
-router.post('/crear', crearEspecialidad); //valida que los datos esten completos
-router.delete('/eliminar/:id', eliminarEspecialidad); //valida que la especialidad
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
+
+router.get('/getAll', verificarToken, obtenerEspecialidades);
+router.put('/modificar/:id', verificarToken, modificarEspecialidad);
+router.post('/crear', verificarToken, crearEspecialidad); //valida que los datos esten completos
+router.delete('/eliminar/:id', verificarToken, eliminarEspecialidad); //valida que la especialidad
 // exista - podria implementarse un middleware para validar los datos
 
 

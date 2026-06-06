@@ -39,22 +39,23 @@ const {
 } = require('../../controllers/obra/avance.controller.js');
 
 //rutas obra 
-router.post('/create', verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra)
-router.get('/getAll', getAllObras)
-router.get('/archivadas', getObrasArchivadas);
-router.put('/modificar/:id', validarFechasObra, modifyObra) 
-router.delete('/delete/:id', darDeBajaObra)
-router.put('/archivar/:id', verificarToken, archivarObra); 
-router.get('/getById/:id', getObraByID)
-router.get('/getByEstado/:estado', getObrasByEstado)
-router.get('/getByUbicacion/:ubicacion', getObrasByUbicacion)
+// rutas obra
+router.post('/create', verificarToken, verificar_estado, verificar_usuario, verificar_tipo_obra, validarFechasObra, createObra);
+router.get('/getAll', verificarToken, getAllObras);
+router.get('/archivadas', verificarToken, getObrasArchivadas);
+router.put('/modificar/:id', verificarToken, validarFechasObra, modifyObra);
+router.delete('/delete/:id', verificarToken, darDeBajaObra);
+router.put('/archivar/:id', verificarToken, archivarObra);
+router.get('/getById/:id', verificarToken, getObraByID);
+router.get('/getByEstado/:estado', verificarToken, getObrasByEstado);
+router.get('/getByUbicacion/:ubicacion', verificarToken, getObrasByUbicacion);
 
 
 //rutas tipos_de_obra
-router.post('/tipoObra/create', createTipoObra )
-router.put('/tipoObra/modificar/:id', modificarTipoDeObra)
-router.get('/tipoObra/getAll', getAllTipoDeObra)
-router.delete('/tipoObra/delete/:id', darDeBajaTipoObra)
+router.post('/tipoObra/create', verificarToken, createTipoObra )
+router.put('/tipoObra/modificar/:id', verificarToken, modificarTipoDeObra)
+router.get('/tipoObra/getAll', verificarToken, getAllTipoDeObra)
+router.delete('/tipoObra/delete/:id', verificarToken, darDeBajaTipoObra)
 
 
 //rutas avances de obra:

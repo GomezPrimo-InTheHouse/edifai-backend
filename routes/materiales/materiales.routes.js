@@ -20,13 +20,15 @@ const upload = multer({
   },
 });
 
-router.get('/getAll', getAllMateriales);
-router.post('/upload-imagen', upload.single('imagen'), uploadImagenMaterial);
-router.get('/getById/:id', getMaterialById);
-router.post('/create', createMaterial);
-router.get('/estadisticas', getEstadisticasMateriales);
-router.put('/modificar/:id', updateMaterial);
-router.delete('/delete/:id', deleteMaterial);
-router.put('/ajustePrecios', ajustePreciosMasivo); // ajuste masivo de precios
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
+
+router.get('/getAll', verificarToken, getAllMateriales);
+router.post('/upload-imagen', verificarToken, upload.single('imagen'), uploadImagenMaterial);
+router.get('/getById/:id', verificarToken, getMaterialById);
+router.post('/create', verificarToken, createMaterial);
+router.get('/estadisticas', verificarToken, getEstadisticasMateriales);
+router.put('/modificar/:id', verificarToken, updateMaterial);
+router.delete('/delete/:id', verificarToken, deleteMaterial);
+router.put('/ajustePrecios', verificarToken, ajustePreciosMasivo); // ajuste masivo de precios
 
 module.exports = router;

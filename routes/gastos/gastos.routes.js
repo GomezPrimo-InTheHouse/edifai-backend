@@ -31,8 +31,9 @@ router.get('/:id',                     verificarToken, obtenerGastoImprevistoPor
 
 // Solo Admin puede cambiar estado o eliminar
 router.patch('/:id/estado',            autorizacionDeRoles(1), actualizarEstadoGasto);
-router.patch('/:id/deudor', verificarToken, actualizarDeudorGasto);
+router.patch('/:id/deudor',            verificarToken, actualizarDeudorGasto);
 router.delete('/:id',                  autorizacionDeRoles(1), eliminarGastoImprevisto);
+
 
 //route para subir el ticket
 router.post('/ticket/upload', verificarToken, upload.single('ticket'), subirTicket);

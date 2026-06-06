@@ -5,7 +5,9 @@ const {
   getHistorialByMaterial, getHistorialCompleto,
 } = require('../../controllers/materiales/historialIncremento.controller.js');
 
-router.get('/getAll', getHistorialCompleto);
-router.get('/getByMaterial/:material_id', getHistorialByMaterial);
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
+
+router.get('/getAll', verificarToken, getHistorialCompleto);
+router.get('/getByMaterial/:material_id', verificarToken, getHistorialByMaterial);
 
 module.exports = router;
