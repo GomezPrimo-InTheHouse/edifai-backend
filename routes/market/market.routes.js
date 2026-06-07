@@ -12,6 +12,7 @@ const {
   enviarMensaje,
   marcarLeidos,
   getMensajesNoLeidos,
+  getInbox
 } = require('../../controllers/market/market.controller.js');
 
 // Publicaciones
@@ -24,11 +25,12 @@ router.put('/publicaciones/:id/cancelar', verificarToken, cancelarPublicacion);
 router.post('/transacciones', verificarToken, iniciarTransaccion);
 router.put('/transacciones/:id', verificarToken, actualizarTransaccion);
 router.get('/transacciones/mis', verificarToken, getMisTransacciones);
-
+router.get('/transacciones/inbox', verificarToken, getInbox);
 // Mensajes
 router.get('/mensajes/no-leidos', verificarToken, getMensajesNoLeidos);
 router.get('/mensajes/:transaccion_id', verificarToken, getMensajes);
 router.post('/mensajes/:transaccion_id', verificarToken, enviarMensaje);
 router.put('/mensajes/leer/:transaccion_id', verificarToken, marcarLeidos);
+
 
 module.exports = router;
