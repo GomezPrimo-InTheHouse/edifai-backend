@@ -33,7 +33,7 @@ router.get('/publicaciones', verificarToken, getPublicaciones);
 router.get('/publicaciones/mis', verificarToken, getMisPublicaciones);
 router.put('/publicaciones/:id/cancelar', verificarToken, cancelarPublicacion);
 
-// Transacciones
+// Transaccioness
 router.post('/transacciones', verificarToken, iniciarTransaccion);
 router.put('/transacciones/:id', verificarToken, actualizarTransaccion);
 router.get('/transacciones/mis', verificarToken, getMisTransacciones);
