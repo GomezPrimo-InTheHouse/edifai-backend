@@ -23,6 +23,8 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
+//importar archivo de rutas del market 
+const marketRoutes = require('./routes/market/market.routes.js');
 
 // ── Inicializar SSE antes de las rutas ──
 const notifController = require('./controllers/notificaciones/notificaciones.controller');
@@ -54,7 +56,9 @@ app.use('/presupuestoMateriales', require('./routes/presupuestos/presupuestoMate
 app.use('/pagos',          require('./routes/pagos/pagos.routes.js'));
 app.use('/formasPago',     require('./routes/pagos/formasPago.routes.js'));
 app.use('/gastos-imprevistos',         require('./routes/gastos/gastos.routes.js'));
+// de esta manera tambien puedo llamar la ruta al app.js
 
+app.use('/market', marketRoutes);
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
   status:    'ok',
