@@ -8,115 +8,115 @@ const ROLES_ADMIN_ALL = [1, 3, 4, 6, 9];
 // ─────────────────────────────────────────────────────────────
 
 const publicarMaterial = async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { material_id, nombre_material, descripcion, cantidad, unidad, precio_unitario, moneda } = req.body;
-    const vendedor_id = req.user.userId;
+    const client = await pool.connect();
+    try {
+        const { material_id, nombre_material, descripcion, cantidad, unidad, precio_unitario, moneda } = req.body;
+        const vendedor_id = req.user.userId;
 
-    if (!nombre_material || !cantidad || !unidad || !precio_unitario)
-      return res.status(400).json({ success: false, message: 'Faltan campos obligatorios: nombre_material, cantidad, unidad, precio_unitario' });
+        if (!nombre_material || !cantidad || !unidad || !precio_unitario)
+            return res.status(400).json({ success: false, message: 'Faltan campos obligatorios: nombre_material, cantidad, unidad, precio_unitario' });
 
-    if (cantidad <= 0)
-      return res.status(400).json({ success: false, message: 'La cantidad debe ser mayor a 0' });
+        if (cantidad <= 0)
+            return res.status(400).json({ success: false, message: 'La cantidad debe ser mayor a 0' });
 
-    await client.query('BEGIN');
+        await client.query('BEGIN');
 
-    if (material_id) {
-      const materialResult = await client.query(
-        `SELECT id, stock_actual, nombre FROM materiales WHERE id = $1`, [material_id]
-      );
-      if (materialResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, message: 'Material no encontrado' });
-      }
+        if (material_id) {
+            const materialResult = await client.query(
+                `SELECT id, stock_actual, nombre FROM materiales WHERE id = $1`, [material_id]
+            );
+            if (materialResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, message: 'Material no encontrado' });
+            }
 
-      const material = materialResult.rows[0];
+            const material = materialResult.rows[0];
 
-      // ← ya NO descontamos stock al publicar
-      if (Number(cantidad) > Number(material.stock_actual)) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          success: false,
-          message: `Stock insuficiente. Stock actual: ${material.stock_actual} ${unidad}`,
-        });
-      }
+            // ← ya NO descontamos stock al publicar
+            if (Number(cantidad) > Number(material.stock_actual)) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    success: false,
+                    message: `Stock insuficiente. Stock actual: ${material.stock_actual} ${unidad}`,
+                });
+            }
 
-      const publicacionActiva = await client.query(
-        `SELECT id FROM market_publicaciones WHERE material_id = $1 AND vendedor_id = $2 AND estado = 'activa'`,
-        [material_id, vendedor_id]
-      );
-      if (publicacionActiva.rows.length > 0) {
-        await client.query('ROLLBACK');
-        return res.status(409).json({ success: false, message: 'Este material ya tiene una publicación activa en el Market' });
-      }
-    }
+            const publicacionActiva = await client.query(
+                `SELECT id FROM market_publicaciones WHERE material_id = $1 AND vendedor_id = $2 AND estado = 'activa'`,
+                [material_id, vendedor_id]
+            );
+            if (publicacionActiva.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ success: false, message: 'Este material ya tiene una publicación activa en el Market' });
+            }
+        }
 
-    const result = await client.query(
-      `INSERT INTO market_publicaciones
+        const result = await client.query(
+            `INSERT INTO market_publicaciones
         (vendedor_id, material_id, nombre_material, descripcion, cantidad, unidad, precio_unitario, moneda)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [vendedor_id, material_id ?? null, nombre_material, descripcion ?? null, cantidad, unidad, precio_unitario, moneda ?? 'ARS']
-    );
+            [vendedor_id, material_id ?? null, nombre_material, descripcion ?? null, cantidad, unidad, precio_unitario, moneda ?? 'ARS']
+        );
 
-    await client.query('COMMIT');
+        await client.query('COMMIT');
 
-    await notificar({
-      tipo: 'market_publicacion',
-      mensaje: `Nueva publicación en el Market: "${nombre_material}"`,
-      usuario_id: null,
-    });
+        await notificar({
+            tipo: 'market_publicacion',
+            mensaje: `Nueva publicación en el Market: "${nombre_material}"`,
+            usuario_id: null,
+        });
 
-    return res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error en publicarMaterial:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  } finally {
-    client.release();
-  }
+        return res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en publicarMaterial:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    } finally {
+        client.release();
+    }
 };
 
 const cancelarPublicacion = async (req, res) => {
-  const { id } = req.params;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    const pubResult = await client.query(
-      `SELECT * FROM market_publicaciones WHERE id = $1`, [id]
-    );
-    if (pubResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Publicación no encontrada' });
+        const pubResult = await client.query(
+            `SELECT * FROM market_publicaciones WHERE id = $1`, [id]
+        );
+        if (pubResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Publicación no encontrada' });
+        }
+
+        const pub = pubResult.rows[0];
+
+        if (Number(pub.vendedor_id) !== Number(req.user.userId) && req.user.rol_id !== 1) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ success: false, message: 'Sin permiso para cancelar esta publicación' });
+        }
+
+        if (pub.estado !== 'activa') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Solo se pueden cancelar publicaciones activas' });
+        }
+
+        // ← ya NO devolvemos stock al cancelar publicación (nunca se descontó)
+
+        await client.query(
+            `UPDATE market_publicaciones SET estado = 'cancelada', updated_at = NOW() WHERE id = $1`, [id]
+        );
+
+        await client.query('COMMIT');
+        return res.status(200).json({ success: true, message: 'Publicación cancelada correctamente' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en cancelarPublicacion:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    } finally {
+        client.release();
     }
-
-    const pub = pubResult.rows[0];
-
-    if (Number(pub.vendedor_id) !== Number(req.user.userId) && req.user.rol_id !== 1) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, message: 'Sin permiso para cancelar esta publicación' });
-    }
-
-    if (pub.estado !== 'activa') {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, message: 'Solo se pueden cancelar publicaciones activas' });
-    }
-
-    // ← ya NO devolvemos stock al cancelar publicación (nunca se descontó)
-
-    await client.query(
-      `UPDATE market_publicaciones SET estado = 'cancelada', updated_at = NOW() WHERE id = $1`, [id]
-    );
-
-    await client.query('COMMIT');
-    return res.status(200).json({ success: true, message: 'Publicación cancelada correctamente' });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error en cancelarPublicacion:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  } finally {
-    client.release();
-  }
 };
 
 
@@ -208,6 +208,22 @@ const iniciarTransaccion = async (req, res) => {
             [publicacion_id, comprador_id, pub.vendedor_id, cantidad_comprada, pub.precio_unitario, pub.moneda, total]
         );
 
+        // Después del INSERT de la transacción y antes del COMMIT
+        const compradorResult = await client.query(
+            `SELECT nombre FROM usuarios WHERE id = $1`, [comprador_id]
+        );
+        const compradorNombre = compradorResult.rows[0]?.nombre ?? 'Un administrador';
+
+        await client.query(
+            `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
+   VALUES ($1, $2, $3)`,
+            [
+                result.rows[0].id,
+                comprador_id,
+                `${compradorNombre} está interesado en comprar ${cantidad_comprada} ${pub.unidad} de "${pub.nombre_material}".`
+            ]
+        );
+
         await client.query('COMMIT');
 
         // Notificar al vendedor
@@ -229,18 +245,18 @@ const iniciarTransaccion = async (req, res) => {
 
 
 const actualizarTransaccion = async (req, res) => {
-  const { id } = req.params;
-  const { estado } = req.body;
-  const estadosValidos = ['confirmada', 'cancelada'];
+    const { id } = req.params;
+    const { estado } = req.body;
+    const estadosValidos = ['confirmada', 'cancelada'];
 
-  if (!estadosValidos.includes(estado))
-    return res.status(400).json({ success: false, message: 'Estado inválido.' });
+    if (!estadosValidos.includes(estado))
+        return res.status(400).json({ success: false, message: 'Estado inválido.' });
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    const txResult = await client.query(`
+        const txResult = await client.query(`
       SELECT mt.*, 
              mp.nombre_material, mp.cantidad AS cantidad_publicada, 
              mp.material_id, mp.estado AS pub_estado
@@ -249,103 +265,103 @@ const actualizarTransaccion = async (req, res) => {
       WHERE mt.id = $1
     `, [id]);
 
-    if (txResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
-    }
-
-    const tx = txResult.rows[0];
-
-    const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
-    const esVendedor  = Number(tx.vendedor_id)  === Number(req.user.userId);
-    const esAdmin     = req.user.rol_id === 1;
-
-    if (!esComprador && !esVendedor && !esAdmin) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
-    }
-
-    if (tx.estado !== 'pendiente') {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
-    }
-
-    if (estado === 'confirmada' && !esVendedor && !esAdmin) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
-    }
-
-    if (estado === 'confirmada') {
-      // Verificar y descontar stock del material
-      if (tx.material_id) {
-        const materialCheck = await client.query(
-          `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
-        );
-        const stockActual = Number(materialCheck.rows[0]?.stock_actual ?? 0);
-
-        if (stockActual < Number(tx.cantidad_comprada)) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
-          });
+        if (txResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
         }
 
-        await client.query(
-          `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
-          [tx.cantidad_comprada, tx.material_id]
-        );
-      }
+        const tx = txResult.rows[0];
 
-      // Leer cantidad ACTUAL de la publicación (no la del JOIN que puede estar desactualizada)
-      const pubResult = await client.query(
-        `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
-      );
-      const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
-      const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
+        const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
+        const esVendedor = Number(tx.vendedor_id) === Number(req.user.userId);
+        const esAdmin = req.user.rol_id === 1;
 
-      if (cantidadRestante <= 0) {
-        // Sin unidades restantes → publicación vendida
-        await client.query(
-          `UPDATE market_publicaciones SET cantidad = 0, estado = 'vendida', updated_at = NOW() WHERE id = $1`,
-          [tx.publicacion_id]
-        );
-      } else {
-        // Quedan unidades → publicación sigue activa con cantidad reducida
-        await client.query(
-          `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
-          [cantidadRestante, tx.publicacion_id]
-        );
-      }
+        if (!esComprador && !esVendedor && !esAdmin) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
+        }
 
-      // Confirmar y archivar esta transacción
-      await client.query(
-        `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`, [id]
-      );
+        if (tx.estado !== 'pendiente') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
+        }
 
-    } else {
-      // Cancelada — sin tocar stock ni publicación
-      await client.query(
-        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [id]
-      );
+        if (estado === 'confirmada' && !esVendedor && !esAdmin) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
+        }
+
+        if (estado === 'confirmada') {
+            // Verificar y descontar stock del material
+            if (tx.material_id) {
+                const materialCheck = await client.query(
+                    `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
+                );
+                const stockActual = Number(materialCheck.rows[0]?.stock_actual ?? 0);
+
+                if (stockActual < Number(tx.cantidad_comprada)) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        success: false,
+                        message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
+                    });
+                }
+
+                await client.query(
+                    `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
+                    [tx.cantidad_comprada, tx.material_id]
+                );
+            }
+
+            // Leer cantidad ACTUAL de la publicación (no la del JOIN que puede estar desactualizada)
+            const pubResult = await client.query(
+                `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
+            );
+            const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
+            const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
+
+            if (cantidadRestante <= 0) {
+                // Sin unidades restantes → publicación vendida
+                await client.query(
+                    `UPDATE market_publicaciones SET cantidad = 0, estado = 'vendida', updated_at = NOW() WHERE id = $1`,
+                    [tx.publicacion_id]
+                );
+            } else {
+                // Quedan unidades → publicación sigue activa con cantidad reducida
+                await client.query(
+                    `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
+                    [cantidadRestante, tx.publicacion_id]
+                );
+            }
+
+            // Confirmar y archivar esta transacción
+            await client.query(
+                `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`, [id]
+            );
+
+        } else {
+            // Cancelada — sin tocar stock ni publicación
+            await client.query(
+                `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [id]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        await notificar({
+            tipo: 'market_transaccion',
+            mensaje: `Transacción #${id} de "${tx.nombre_material}" fue ${estado}`,
+            usuario_id: estado === 'confirmada' ? Number(tx.comprador_id) : Number(tx.vendedor_id),
+        });
+
+        return res.status(200).json({ success: true, message: `Transacción ${estado} correctamente` });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en actualizarTransaccion:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    } finally {
+        client.release();
     }
-
-    await client.query('COMMIT');
-
-    await notificar({
-      tipo: 'market_transaccion',
-      mensaje: `Transacción #${id} de "${tx.nombre_material}" fue ${estado}`,
-      usuario_id: estado === 'confirmada' ? Number(tx.comprador_id) : Number(tx.vendedor_id),
-    });
-
-    return res.status(200).json({ success: true, message: `Transacción ${estado} correctamente` });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error en actualizarTransaccion:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  } finally {
-    client.release();
-  }
 };
 
 const getMisTransacciones = async (req, res) => {
@@ -488,11 +504,11 @@ const getMensajesNoLeidos = async (req, res) => {
 };
 
 const getInbox = async (req, res) => {
-  const { archivadas } = req.query; // ?archivadas=true para ver historial
-  const soloArchivadas = archivadas === 'true';
+    const { archivadas } = req.query; // ?archivadas=true para ver historial
+    const soloArchivadas = archivadas === 'true';
 
-  try {
-    const result = await pool.query(`
+    try {
+        const result = await pool.query(`
       SELECT 
         mt.*,
         mp.nombre_material, mp.unidad, mp.moneda, mp.estado AS publicacion_estado,
@@ -523,11 +539,11 @@ const getInbox = async (req, res) => {
       ORDER BY ultimo_mensaje_at DESC NULLS LAST, mt.created_at DESC
     `, [req.user.userId, soloArchivadas]);
 
-    return res.status(200).json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error en getInbox:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  }
+        return res.status(200).json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error en getInbox:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
 };
 
 module.exports = {
