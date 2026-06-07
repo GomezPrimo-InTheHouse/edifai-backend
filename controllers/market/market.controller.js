@@ -233,14 +233,16 @@ const actualizarTransaccion = async (req, res) => {
   const estadosValidos = ['confirmada', 'cancelada'];
 
   if (!estadosValidos.includes(estado))
-    return res.status(400).json({ success: false, message: 'Estado inválido. Valores permitidos: confirmada, cancelada' });
+    return res.status(400).json({ success: false, message: 'Estado inválido.' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const txResult = await client.query(`
-      SELECT mt.*, mp.nombre_material, mp.cantidad AS cantidad_publicada, mp.material_id, mp.vendedor_id AS pub_vendedor_id
+      SELECT mt.*, 
+             mp.nombre_material, mp.cantidad AS cantidad_publicada, 
+             mp.material_id, mp.estado AS pub_estado
       FROM market_transacciones mt
       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
       WHERE mt.id = $1
@@ -252,12 +254,13 @@ const actualizarTransaccion = async (req, res) => {
     }
 
     const tx = txResult.rows[0];
-    const esParteDelChat =
-      Number(tx.comprador_id) === Number(req.user.userId) ||
-      Number(tx.vendedor_id) === Number(req.user.userId) ||
-      req.user.rol_id === 1;
 
-    if (!esParteDelChat) {
+    // Verificar que es parte del chat
+    const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
+    const esVendedor  = Number(tx.vendedor_id)  === Number(req.user.userId);
+    const esAdmin     = req.user.rol_id === 1;
+
+    if (!esComprador && !esVendedor && !esAdmin) {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
     }
@@ -267,12 +270,14 @@ const actualizarTransaccion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
     }
 
-    await client.query(
-      `UPDATE market_transacciones SET estado = $1 WHERE id = $2`, [estado, id]
-    );
+    // Solo el vendedor puede confirmar
+    if (estado === 'confirmada' && !esVendedor && !esAdmin) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
+    }
 
     if (estado === 'confirmada') {
-      // ← descuenta stock al confirmar compra
+      // Verificar stock disponible
       if (tx.material_id) {
         const materialCheck = await client.query(
           `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
@@ -283,17 +288,18 @@ const actualizarTransaccion = async (req, res) => {
           await client.query('ROLLBACK');
           return res.status(400).json({
             success: false,
-            message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
+            message: `Stock insuficiente. Stock actual: ${stockActual}`,
           });
         }
 
+        // Descontar stock al confirmar
         await client.query(
           `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
           [tx.cantidad_comprada, tx.material_id]
         );
       }
 
-      // Actualizar cantidad restante en publicación
+      // Actualizar cantidad en publicación
       const nuevaCantidad = Number(tx.cantidad_publicada) - Number(tx.cantidad_comprada);
       if (nuevaCantidad <= 0) {
         await client.query(
@@ -306,9 +312,19 @@ const actualizarTransaccion = async (req, res) => {
           [nuevaCantidad, tx.publicacion_id]
         );
       }
-    }
 
-    // ← cancelada: no devuelve stock (nunca se descontó)
+      // Archivar la conversación al confirmar
+      await client.query(
+        `UPDATE market_transacciones SET estado = $1, archivada = TRUE WHERE id = $2`,
+        [estado, id]
+      );
+    } else {
+      // Cancelada — sin tocar stock (nunca se descontó al iniciar)
+      await client.query(
+        `UPDATE market_transacciones SET estado = $1 WHERE id = $2`,
+        [estado, id]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -466,7 +482,11 @@ const getMensajesNoLeidos = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 };
+
 const getInbox = async (req, res) => {
+  const { archivadas } = req.query; // ?archivadas=true para ver historial
+  const soloArchivadas = archivadas === 'true';
+
   try {
     const result = await pool.query(`
       SELECT 
@@ -494,9 +514,10 @@ const getInbox = async (req, res) => {
       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
       JOIN usuarios uc ON uc.id = mt.comprador_id
       JOIN usuarios uv ON uv.id = mt.vendedor_id
-      WHERE mt.comprador_id = $1 OR mt.vendedor_id = $1
+      WHERE (mt.comprador_id = $1 OR mt.vendedor_id = $1)
+        AND mt.archivada = $2
       ORDER BY ultimo_mensaje_at DESC NULLS LAST, mt.created_at DESC
-    `, [req.user.userId]);
+    `, [req.user.userId, soloArchivadas]);
 
     return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
