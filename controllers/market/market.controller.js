@@ -227,6 +227,7 @@ const iniciarTransaccion = async (req, res) => {
     }
 };
 
+
 const actualizarTransaccion = async (req, res) => {
   const { id } = req.params;
   const { estado } = req.body;
@@ -255,7 +256,6 @@ const actualizarTransaccion = async (req, res) => {
 
     const tx = txResult.rows[0];
 
-    // Verificar que es parte del chat
     const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
     const esVendedor  = Number(tx.vendedor_id)  === Number(req.user.userId);
     const esAdmin     = req.user.rol_id === 1;
@@ -270,14 +270,13 @@ const actualizarTransaccion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
     }
 
-    // Solo el vendedor puede confirmar
     if (estado === 'confirmada' && !esVendedor && !esAdmin) {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
     }
 
     if (estado === 'confirmada') {
-      // Verificar stock disponible
+      // Verificar y descontar stock del material
       if (tx.material_id) {
         const materialCheck = await client.query(
           `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
@@ -288,41 +287,46 @@ const actualizarTransaccion = async (req, res) => {
           await client.query('ROLLBACK');
           return res.status(400).json({
             success: false,
-            message: `Stock insuficiente. Stock actual: ${stockActual}`,
+            message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
           });
         }
 
-        // Descontar stock al confirmar
         await client.query(
           `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
           [tx.cantidad_comprada, tx.material_id]
         );
       }
 
-      // Actualizar cantidad en publicación
-      const nuevaCantidad = Number(tx.cantidad_publicada) - Number(tx.cantidad_comprada);
-      if (nuevaCantidad <= 0) {
+      // Leer cantidad ACTUAL de la publicación (no la del JOIN que puede estar desactualizada)
+      const pubResult = await client.query(
+        `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
+      );
+      const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
+      const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
+
+      if (cantidadRestante <= 0) {
+        // Sin unidades restantes → publicación vendida
         await client.query(
-          `UPDATE market_publicaciones SET estado = 'vendida', updated_at = NOW() WHERE id = $1`,
+          `UPDATE market_publicaciones SET cantidad = 0, estado = 'vendida', updated_at = NOW() WHERE id = $1`,
           [tx.publicacion_id]
         );
       } else {
+        // Quedan unidades → publicación sigue activa con cantidad reducida
         await client.query(
           `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
-          [nuevaCantidad, tx.publicacion_id]
+          [cantidadRestante, tx.publicacion_id]
         );
       }
 
-      // Archivar la conversación al confirmar
+      // Confirmar y archivar esta transacción
       await client.query(
-        `UPDATE market_transacciones SET estado = $1, archivada = TRUE WHERE id = $2`,
-        [estado, id]
+        `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`, [id]
       );
+
     } else {
-      // Cancelada — sin tocar stock (nunca se descontó al iniciar)
+      // Cancelada — sin tocar stock ni publicación
       await client.query(
-        `UPDATE market_transacciones SET estado = $1 WHERE id = $2`,
-        [estado, id]
+        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [id]
       );
     }
 
