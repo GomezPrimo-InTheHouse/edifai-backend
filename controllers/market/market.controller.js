@@ -798,17 +798,8 @@ const agregarCompraAlInventario = async (req, res) => {
 
     const tx = txResult.rows[0];
 
-    // Verificar si ya fue agregado al inventario
-    const yaAgregado = await client.query(
-      `SELECT id FROM materiales 
-       WHERE propietario_id = $1 
-         AND nombre = $2 
-         AND origen = 'market'
-         AND stock_actual = $3`,
-      [req.user.userId, tx.nombre_material, tx.cantidad_comprada]
-    );
-
-    if (yaAgregado.rows.length > 0) {
+    // Verificar si ya fue agregado al inventario usando la columna agregado_al_inventario
+    if (tx.agregado_al_inventario) {
       await client.query('ROLLBACK');
       return res.status(409).json({ success: false, message: 'Este material ya fue agregado a tu inventario' });
     }
@@ -858,6 +849,12 @@ const agregarCompraAlInventario = async (req, res) => {
         estado_id,
         req.user.userId,
       ]
+    );
+
+    // Marcar transacción como agregada al inventario
+    await client.query(
+      `UPDATE market_transacciones SET agregado_al_inventario = TRUE WHERE id = $1`,
+      [transaccion_id]
     );
 
     await client.query('COMMIT');
