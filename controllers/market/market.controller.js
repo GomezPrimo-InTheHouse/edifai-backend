@@ -783,13 +783,17 @@ const agregarCompraAlInventario = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const txResult = await pool.query(`
+    console.log(`[agregarCompraAlInventario] transaccion_id: ${transaccion_id}, userId: ${req.user.userId}, forzar: ${forzar}`);
+
+    const txResult = await client.query(`
       SELECT mt.*, mp.nombre_material, mp.descripcion, mp.unidad, 
              mp.precio_unitario, mp.material_id
       FROM market_transacciones mt
       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
       WHERE mt.id = $1 AND mt.comprador_id = $2 AND mt.estado = 'confirmada'
     `, [transaccion_id, req.user.userId]);
+
+    console.log(`[agregarCompraAlInventario] tx encontrada: ${txResult.rows.length > 0}`);
 
     if (txResult.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -798,13 +802,14 @@ const agregarCompraAlInventario = async (req, res) => {
 
     const tx = txResult.rows[0];
 
-    // Verificar si ya fue agregado al inventario usando la columna agregado_al_inventario
+    console.log(`[agregarCompraAlInventario] agregado_al_inventario: ${tx.agregado_al_inventario}`);
+    console.log(`[agregarCompraAlInventario] nombre_material: ${tx.nombre_material}, cantidad: ${tx.cantidad_comprada}`);
+
     if (tx.agregado_al_inventario) {
       await client.query('ROLLBACK');
       return res.status(409).json({ success: false, message: 'Este material ya fue agregado a tu inventario' });
     }
 
-    // Buscar materiales similares (solo si no se fuerza la creación)
     if (!forzar) {
       const similarResult = await client.query(
         `SELECT id, nombre, stock_actual, unidad, precio_unitario
@@ -817,6 +822,8 @@ const agregarCompraAlInventario = async (req, res) => {
         [req.user.userId, `%${tx.nombre_material.toLowerCase().trim()}%`]
       );
 
+      console.log(`[agregarCompraAlInventario] similares encontrados: ${similarResult.rows.length}`);
+
       if (similarResult.rows.length > 0) {
         await client.query('ROLLBACK');
         return res.status(200).json({
@@ -828,13 +835,13 @@ const agregarCompraAlInventario = async (req, res) => {
       }
     }
 
-    // Obtener estado activo
     const estadoResult = await client.query(
       `SELECT id FROM estados WHERE nombre = 'Activo' AND ambito = 'material' LIMIT 1`
     );
     const estado_id = estadoResult.rows[0]?.id ?? 23;
 
-    // Insertar en materiales con origen = 'market'
+    console.log(`[agregarCompraAlInventario] estado_id: ${estado_id}`);
+
     const result = await client.query(
       `INSERT INTO materiales 
         (nombre, descripcion, unidad, stock_actual, precio_unitario, estado_id, propietario_id, origen)
@@ -851,13 +858,16 @@ const agregarCompraAlInventario = async (req, res) => {
       ]
     );
 
-    // Marcar transacción como agregada al inventario
+    console.log(`[agregarCompraAlInventario] material insertado id: ${result.rows[0]?.id}`);
+
     await client.query(
       `UPDATE market_transacciones SET agregado_al_inventario = TRUE WHERE id = $1`,
       [transaccion_id]
     );
 
     await client.query('COMMIT');
+
+    console.log(`[agregarCompraAlInventario] COMMIT exitoso`);
 
     return res.status(201).json({
       success: true,
@@ -866,13 +876,12 @@ const agregarCompraAlInventario = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error en agregarCompraAlInventario:', error.message);
+    console.error('[agregarCompraAlInventario] ERROR:', error.message, error.stack);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   } finally {
     client.release();
   }
 };
-
 
 const agregarStockMaterialExistente = async (req, res) => {
   const { transaccion_id, material_id } = req.params;
