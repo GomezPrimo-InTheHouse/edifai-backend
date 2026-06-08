@@ -632,7 +632,21 @@ const modifyObra = async (req, res) => {
 
 const getAllObras = async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const offset = (page - 1) * limit;
+
     const { where, params } = getFiltro(req);
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM obras o WHERE o.archivado = FALSE
+       AND o.estado_id != 21
+       ${where}`,
+      params
+    );
+
+    const total = Number(countResult.rows[0].count);
+    const totalPages = Math.ceil(total / limit);
 
     const result = await pool.query(`
       SELECT o.* 
@@ -641,12 +655,20 @@ const getAllObras = async (req, res) => {
       AND o.estado_id != 21
       ${where}
       ORDER BY o.id
-    `, params);
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
 
     return res.status(200).json({
       success: true,
-      message: 'Obras obtenidas con éxito',
-      obras: result.rows,
+      data: result.rows,
+      pagination: {
+        total,
+        totalPages,
+        page,
+        limit,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
     });
   } catch (error) {
     res.status(500).json({
