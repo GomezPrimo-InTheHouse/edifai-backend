@@ -324,13 +324,33 @@ const actualizarTransaccion = async (req, res) => {
             const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
 
             if (cantidadRestante <= 0) {
-                // Sin unidades restantes → publicación vendida
+                // Marcar publicación como vendida con datos del comprador final
                 await client.query(
-                    `UPDATE market_publicaciones SET cantidad = 0, estado = 'vendida', updated_at = NOW() WHERE id = $1`,
-                    [tx.publicacion_id]
+                    `UPDATE market_publicaciones 
+     SET cantidad = 0, estado = 'vendida', 
+         comprador_final_id = $1, fecha_venta = NOW(),
+         updated_at = NOW() 
+     WHERE id = $2`,
+                    [tx.comprador_id, tx.publicacion_id]
                 );
+
+                // Cancelar otras transacciones pendientes
+                const otrasTransacciones = await client.query(
+                    `SELECT id, comprador_id FROM market_transacciones
+     WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
+                    [tx.publicacion_id, id]
+                );
+                for (const otraTx of otrasTransacciones.rows) {
+                    await client.query(
+                        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [otraTx.id]
+                    );
+                    await notificar({
+                        tipo: 'market_stock_agotado',
+                        mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
+                        usuario_id: Number(otraTx.comprador_id),
+                    });
+                }
             } else {
-                // Quedan unidades → publicación sigue activa con cantidad reducida
                 await client.query(
                     `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
                     [cantidadRestante, tx.publicacion_id]
@@ -552,174 +572,278 @@ const getInbox = async (req, res) => {
 
 
 const subirComprobante = async (req, res) => {
+    const { transaccion_id } = req.params;
+    const client = await pool.connect();
+
+    try {
+        if (!req.file)
+            return res.status(400).json({ success: false, message: 'No se recibió ningún archivo' });
+
+        // Verificar que es comprador de esta transacción
+        const txResult = await pool.query(
+            `SELECT mt.*, mp.nombre_material, mp.material_id
+       FROM market_transacciones mt
+       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
+       WHERE mt.id = $1`,
+            [transaccion_id]
+        );
+
+        if (txResult.rows.length === 0)
+            return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
+
+        const tx = txResult.rows[0];
+
+        if (Number(tx.comprador_id) !== Number(req.user.userId))
+            return res.status(403).json({ success: false, message: 'Solo el comprador puede subir el comprobante' });
+
+        if (tx.estado !== 'pendiente')
+            return res.status(400).json({ success: false, message: 'La transacción no está pendiente' });
+
+        // Subir imagen a Supabase Storage
+        const supabase = getSupabase();
+        const ext = req.file.originalname.split('.').pop();
+        const fileName = `comprobante-${transaccion_id}-${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('market-comprobantes')
+            .upload(fileName, req.file.buffer, {
+                contentType: req.file.mimetype,
+                upsert: false,
+            });
+
+        if (uploadError) {
+            console.error('Error subiendo comprobante:', uploadError);
+            return res.status(500).json({ success: false, message: 'Error al subir el comprobante' });
+        }
+
+        // Analizar con IA
+        const imageBase64 = req.file.buffer.toString('base64');
+        const mediaType = req.file.mimetype;
+        const analisis = await analizarComprobante(
+            imageBase64,
+            mediaType,
+            Number(tx.total),
+            tx.moneda
+        );
+
+        // Generar URL firmada para el comprobante (válida 24hs)
+        const { data: signedData } = await supabase.storage
+            .from('market-comprobantes')
+            .createSignedUrl(fileName, 86400);
+
+        const comprobanteUrl = signedData?.signedUrl ?? null;
+
+        await client.query('BEGIN');
+
+        // Insertar mensaje con el comprobante en el chat
+        const compradorResult = await pool.query(
+            `SELECT nombre FROM usuarios WHERE id = $1`, [req.user.userId]
+        );
+        const compradorNombre = compradorResult.rows[0]?.nombre ?? 'El comprador';
+
+        const mensajeComprobante = `📎 ${compradorNombre} adjuntó un comprobante de pago.\n🔗 ${comprobanteUrl}`;
+        await client.query(
+            `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
+       VALUES ($1, $2, $3)`,
+            [transaccion_id, req.user.userId, mensajeComprobante]
+        );
+
+        // Si la IA valida el comprobante con alta confianza y el monto coincide → confirmar automáticamente
+        const validado = analisis.es_comprobante && analisis.monto_coincide && analisis.confianza !== 'baja';
+
+        if (validado) {
+            // Descontar stock
+            if (tx.material_id) {
+                await client.query(
+                    `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
+                    [tx.cantidad_comprada, tx.material_id]
+                );
+            }
+
+            // Actualizar cantidad publicación
+            const pubResult = await client.query(
+                `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
+            );
+            const cantidadRestante = Number(pubResult.rows[0]?.cantidad ?? 0) - Number(tx.cantidad_comprada);
+
+            if (cantidadRestante <= 0) {
+                // Marcar publicación como vendida con datos del comprador final
+                await client.query(
+                    `UPDATE market_publicaciones 
+     SET cantidad = 0, estado = 'vendida', 
+         comprador_final_id = $1, fecha_venta = NOW(),
+         updated_at = NOW() 
+     WHERE id = $2`,
+                    [tx.comprador_id, tx.publicacion_id]
+                );
+
+                // Cancelar otras transacciones pendientes
+                const otrasTransacciones = await client.query(
+                    `SELECT id, comprador_id FROM market_transacciones
+     WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
+                    [tx.publicacion_id, id]
+                );
+                for (const otraTx of otrasTransacciones.rows) {
+                    await client.query(
+                        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [otraTx.id]
+                    );
+                    await notificar({
+                        tipo: 'market_stock_agotado',
+                        mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
+                        usuario_id: Number(otraTx.comprador_id),
+                    });
+                }
+            } else {
+                await client.query(
+                    `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
+                    [cantidadRestante, tx.publicacion_id]
+                );
+            }
+
+            // Confirmar y archivar transacción
+            await client.query(
+                `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`,
+                [transaccion_id]
+            );
+
+            // Mensaje automático de confirmación en el chat
+            await client.query(
+                `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
+         VALUES ($1, $2, $3)`,
+                [transaccion_id, req.user.userId,
+                    `✅ Comprobante validado automáticamente por IA. La transacción fue confirmada. ¡Gracias!`]
+            );
+
+            await notificar({
+                tipo: 'market_transaccion',
+                mensaje: `Comprobante validado: transacción de "${tx.nombre_material}" confirmada automáticamente.`,
+                usuario_id: Number(tx.vendedor_id),
+            });
+
+        } else {
+            // Comprobante inválido → mensaje en el chat con el motivo
+            await client.query(
+                `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
+         VALUES ($1, $2, $3)`,
+                [transaccion_id, req.user.userId,
+                    `⚠️ El comprobante no pudo ser validado automáticamente. Motivo: ${analisis.motivo}. El vendedor deberá confirmarlo manualmente.`]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        return res.status(200).json({
+            success: true,
+            validado,
+            analisis,
+            comprobanteUrl,
+            message: validado
+                ? 'Comprobante validado y transacción confirmada automáticamente.'
+                : 'Comprobante recibido pero no validado. El vendedor debe confirmar manualmente.',
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en subirComprobante:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    } finally {
+        client.release();
+    }
+};
+
+
+const getMisCompras = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        mt.*,
+        mp.nombre_material, mp.unidad, mp.moneda,
+        mp.precio_unitario, mp.descripcion, mp.material_id,
+        uv.nombre AS vendedor_nombre, uv.email AS vendedor_email
+      FROM market_transacciones mt
+      JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
+      JOIN usuarios uv ON uv.id = mt.vendedor_id
+      WHERE mt.comprador_id = $1
+        AND mt.estado = 'confirmada'
+      ORDER BY mt.created_at DESC
+    `, [req.user.userId]);
+
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error en getMisCompras:', error.message);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+const agregarCompraAlInventario = async (req, res) => {
   const { transaccion_id } = req.params;
   const client = await pool.connect();
 
   try {
-    if (!req.file)
-      return res.status(400).json({ success: false, message: 'No se recibió ningún archivo' });
+    await client.query('BEGIN');
 
-    // Verificar que es comprador de esta transacción
-    const txResult = await pool.query(
-      `SELECT mt.*, mp.nombre_material, mp.material_id
-       FROM market_transacciones mt
-       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
-       WHERE mt.id = $1`,
-      [transaccion_id]
-    );
+    const txResult = await pool.query(`
+      SELECT mt.*, mp.nombre_material, mp.descripcion, mp.unidad, 
+             mp.precio_unitario, mp.material_id
+      FROM market_transacciones mt
+      JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
+      WHERE mt.id = $1 AND mt.comprador_id = $2 AND mt.estado = 'confirmada'
+    `, [transaccion_id, req.user.userId]);
 
-    if (txResult.rows.length === 0)
-      return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
+    if (txResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Transacción no encontrada o sin permiso' });
+    }
 
     const tx = txResult.rows[0];
 
-    if (Number(tx.comprador_id) !== Number(req.user.userId))
-      return res.status(403).json({ success: false, message: 'Solo el comprador puede subir el comprobante' });
+    // Verificar si ya fue agregado al inventario
+    const yaAgregado = await client.query(
+      `SELECT id FROM materiales 
+       WHERE propietario_id = $1 
+         AND nombre = $2 
+         AND origen = 'market'
+         AND stock_actual = $3`,
+      [req.user.userId, tx.nombre_material, tx.cantidad_comprada]
+    );
 
-    if (tx.estado !== 'pendiente')
-      return res.status(400).json({ success: false, message: 'La transacción no está pendiente' });
-
-    // Subir imagen a Supabase Storage
-    const supabase = getSupabase();
-    const ext = req.file.originalname.split('.').pop();
-    const fileName = `comprobante-${transaccion_id}-${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('market-comprobantes')
-      .upload(fileName, req.file.buffer, {
-        contentType: req.file.mimetype,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('Error subiendo comprobante:', uploadError);
-      return res.status(500).json({ success: false, message: 'Error al subir el comprobante' });
+    if (yaAgregado.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Este material ya fue agregado a tu inventario' });
     }
 
-    // Analizar con IA
-    const imageBase64 = req.file.buffer.toString('base64');
-    const mediaType = req.file.mimetype;
-    const analisis = await analizarComprobante(
-      imageBase64,
-      mediaType,
-      Number(tx.total),
-      tx.moneda
+    // Obtener estado activo
+    const estadoResult = await client.query(
+      `SELECT id FROM estados WHERE nombre = 'Disponible' AND ambito = 'material' LIMIT 1`
     );
+    const estado_id = estadoResult.rows[0]?.id ?? null;
 
-    // Generar URL firmada para el comprobante (válida 24hs)
-    const { data: signedData } = await supabase.storage
-      .from('market-comprobantes')
-      .createSignedUrl(fileName, 86400);
-
-    const comprobanteUrl = signedData?.signedUrl ?? null;
-
-    await client.query('BEGIN');
-
-    // Insertar mensaje con el comprobante en el chat
-    const compradorResult = await pool.query(
-      `SELECT nombre FROM usuarios WHERE id = $1`, [req.user.userId]
+    // Insertar en materiales con origen = 'market'
+    const result = await client.query(
+      `INSERT INTO materiales 
+        (nombre, descripcion, unidad, stock_actual, precio_unitario, estado_id, propietario_id, origen)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'market')
+       RETURNING *`,
+      [
+        tx.nombre_material,
+        tx.descripcion ?? null,
+        tx.unidad,
+        tx.cantidad_comprada,
+        tx.precio_unitario,
+        estado_id,
+        req.user.userId,
+      ]
     );
-    const compradorNombre = compradorResult.rows[0]?.nombre ?? 'El comprador';
-
-    const mensajeComprobante = `📎 ${compradorNombre} adjuntó un comprobante de pago.\n🔗 ${comprobanteUrl}`;
-    await client.query(
-      `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
-       VALUES ($1, $2, $3)`,
-      [transaccion_id, req.user.userId, mensajeComprobante]
-    );
-
-    // Si la IA valida el comprobante con alta confianza y el monto coincide → confirmar automáticamente
-    const validado = analisis.es_comprobante && analisis.monto_coincide && analisis.confianza !== 'baja';
-
-    if (validado) {
-      // Descontar stock
-      if (tx.material_id) {
-        await client.query(
-          `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
-          [tx.cantidad_comprada, tx.material_id]
-        );
-      }
-
-      // Actualizar cantidad publicación
-      const pubResult = await client.query(
-        `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
-      );
-      const cantidadRestante = Number(pubResult.rows[0]?.cantidad ?? 0) - Number(tx.cantidad_comprada);
-
-      if (cantidadRestante <= 0) {
-        await client.query(
-          `UPDATE market_publicaciones SET cantidad = 0, estado = 'vendida', updated_at = NOW() WHERE id = $1`,
-          [tx.publicacion_id]
-        );
-
-        // Cancelar otras transacciones pendientes
-        const otrasTransacciones = await client.query(
-          `SELECT id, comprador_id FROM market_transacciones
-           WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
-          [tx.publicacion_id, transaccion_id]
-        );
-        for (const otraTx of otrasTransacciones.rows) {
-          await client.query(
-            `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [otraTx.id]
-          );
-          await notificar({
-            tipo: 'market_stock_agotado',
-            mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
-            usuario_id: Number(otraTx.comprador_id),
-          });
-        }
-      } else {
-        await client.query(
-          `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
-          [cantidadRestante, tx.publicacion_id]
-        );
-      }
-
-      // Confirmar y archivar transacción
-      await client.query(
-        `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`,
-        [transaccion_id]
-      );
-
-      // Mensaje automático de confirmación en el chat
-      await client.query(
-        `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
-         VALUES ($1, $2, $3)`,
-        [transaccion_id, req.user.userId,
-         `✅ Comprobante validado automáticamente por IA. La transacción fue confirmada. ¡Gracias!`]
-      );
-
-      await notificar({
-        tipo: 'market_transaccion',
-        mensaje: `Comprobante validado: transacción de "${tx.nombre_material}" confirmada automáticamente.`,
-        usuario_id: Number(tx.vendedor_id),
-      });
-
-    } else {
-      // Comprobante inválido → mensaje en el chat con el motivo
-      await client.query(
-        `INSERT INTO market_mensajes (transaccion_id, remitente_id, mensaje)
-         VALUES ($1, $2, $3)`,
-        [transaccion_id, req.user.userId,
-         `⚠️ El comprobante no pudo ser validado automáticamente. Motivo: ${analisis.motivo}. El vendedor deberá confirmarlo manualmente.`]
-      );
-    }
 
     await client.query('COMMIT');
 
-    return res.status(200).json({
+    return res.status(201).json({
       success: true,
-      validado,
-      analisis,
-      comprobanteUrl,
-      message: validado
-        ? 'Comprobante validado y transacción confirmada automáticamente.'
-        : 'Comprobante recibido pero no validado. El vendedor debe confirmar manualmente.',
+      message: 'Material agregado a tu inventario correctamente.',
+      data: result.rows[0],
     });
-
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error en subirComprobante:', error.message);
+    console.error('Error en agregarCompraAlInventario:', error.message);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   } finally {
     client.release();
@@ -739,5 +863,7 @@ module.exports = {
     marcarLeidos,
     getMensajesNoLeidos,
     getInbox,
-    subirComprobante
+    subirComprobante,
+    getMisCompras,
+    agregarCompraAlInventario,
 };

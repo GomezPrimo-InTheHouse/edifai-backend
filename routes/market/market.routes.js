@@ -13,7 +13,9 @@ const {
   marcarLeidos,
   getMensajesNoLeidos,
   getInbox,
-  subirComprobante
+  subirComprobante,
+  getMisCompras,
+  agregarCompraAlInventario,
 } = require('../../controllers/market/market.controller.js');
 const multer = require('multer');
 
@@ -45,5 +47,7 @@ router.post('/mensajes/:transaccion_id', verificarToken, enviarMensaje);
 router.put('/mensajes/leer/:transaccion_id', verificarToken, marcarLeidos);
 
 router.post('/comprobante/:transaccion_id', verificarToken, uploadComprobante.single('comprobante'), subirComprobante);
+router.get('/compras/mis', verificarToken, getMisCompras);
+router.post('/compras/inventario/:transaccion_id', verificarToken, agregarCompraAlInventario);
 
 module.exports = router;
