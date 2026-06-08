@@ -753,8 +753,8 @@ const subirComprobante = async (req, res) => {
 
 
 const getMisCompras = async (req, res) => {
-    try {
-        const result = await pool.query(`
+  try {
+    const result = await pool.query(`
       SELECT 
         mt.*,
         mp.nombre_material, mp.unidad, mp.moneda,
@@ -768,11 +768,11 @@ const getMisCompras = async (req, res) => {
       ORDER BY mt.created_at DESC
     `, [req.user.userId]);
 
-        return res.status(200).json({ success: true, data: result.rows });
-    } catch (error) {
-        console.error('Error en getMisCompras:', error.message);
-        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-    }
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error en getMisCompras:', error.message);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
 };
 
 const agregarCompraAlInventario = async (req, res) => {
@@ -811,16 +811,16 @@ const agregarCompraAlInventario = async (req, res) => {
     }
 
     if (!forzar) {
-      const similarResult = await client.query(
-        `SELECT id, nombre, stock_actual, unidad, precio_unitario
-         FROM materiales 
-         WHERE propietario_id = $1 
-           AND origen != 'market'
-           AND LOWER(nombre) ILIKE $2
-           AND estado_id = 23
-         LIMIT 3`,
-        [req.user.userId, `%${tx.nombre_material.toLowerCase().trim()}%`]
-      );
+const similarResult = await client.query(
+  `SELECT id, nombre, stock_actual, unidad, precio_unitario
+   FROM materiales 
+   WHERE propietario_id = $1 
+     AND LOWER(nombre) ILIKE $2
+     AND estado_id = 23
+     AND id != COALESCE((SELECT id FROM materiales WHERE propietario_id = $1 AND origen = 'market' AND nombre = $3 LIMIT 1), 0)
+   LIMIT 3`,
+  [req.user.userId, `%${tx.nombre_material.toLowerCase().trim()}%`, tx.nombre_material]
+);
 
       console.log(`[agregarCompraAlInventario] similares encontrados: ${similarResult.rows.length}`);
 
