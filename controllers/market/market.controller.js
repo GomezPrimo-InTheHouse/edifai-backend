@@ -247,19 +247,160 @@ const iniciarTransaccion = async (req, res) => {
 };
 
 
+// const actualizarTransaccion = async (req, res) => {
+//     const { id } = req.params;
+//     const { estado } = req.body;
+//     const estadosValidos = ['confirmada', 'cancelada'];
+
+//     if (!estadosValidos.includes(estado))
+//         return res.status(400).json({ success: false, message: 'Estado inválido.' });
+
+//     const client = await pool.connect();
+//     try {
+//         await client.query('BEGIN');
+
+//         const txResult = await client.query(`
+//       SELECT mt.*, 
+//              mp.nombre_material, mp.cantidad AS cantidad_publicada, 
+//              mp.material_id, mp.estado AS pub_estado
+//       FROM market_transacciones mt
+//       JOIN market_publicaciones mp ON mp.id = mt.publicacion_id
+//       WHERE mt.id = $1
+//     `, [id]);
+
+//         if (txResult.rows.length === 0) {
+//             await client.query('ROLLBACK');
+//             return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
+//         }
+
+//         const tx = txResult.rows[0];
+
+//         const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
+//         const esVendedor = Number(tx.vendedor_id) === Number(req.user.userId);
+//         const esAdmin = req.user.rol_id === 1;
+
+//         if (!esComprador && !esVendedor && !esAdmin) {
+//             await client.query('ROLLBACK');
+//             return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
+//         }
+
+//         if (tx.estado !== 'pendiente') {
+//             await client.query('ROLLBACK');
+//             return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
+//         }
+
+//         if (estado === 'confirmada' && !esVendedor && !esAdmin) {
+//             await client.query('ROLLBACK');
+//             return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
+//         }
+
+//         if (estado === 'confirmada') {
+//             // Verificar y descontar stock del material
+//             if (tx.material_id) {
+//                 const materialCheck = await client.query(
+//                     `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
+//                 );
+//                 const stockActual = Number(materialCheck.rows[0]?.stock_actual ?? 0);
+
+//                 if (stockActual < Number(tx.cantidad_comprada)) {
+//                     await client.query('ROLLBACK');
+//                     return res.status(400).json({
+//                         success: false,
+//                         message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
+//                     });
+//                 }
+
+//                 await client.query(
+//                     `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
+//                     [tx.cantidad_comprada, tx.material_id]
+//                 );
+//             }
+
+//             // Leer cantidad ACTUAL de la publicación (no la del JOIN que puede estar desactualizada)
+//             const pubResult = await client.query(
+//                 `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
+//             );
+//             const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
+//             const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
+
+//             if (cantidadRestante <= 0) {
+//                 // Marcar publicación como vendida con datos del comprador final
+//                 await client.query(
+//                     `UPDATE market_publicaciones 
+//      SET cantidad = 0, estado = 'vendida', 
+//          comprador_final_id = $1, fecha_venta = NOW(),
+//          updated_at = NOW() 
+//      WHERE id = $2`,
+//                     [tx.comprador_id, tx.publicacion_id]
+//                 );
+
+//                 // Cancelar otras transacciones pendientes
+//                 const otrasTransacciones = await client.query(
+//                     `SELECT id, comprador_id FROM market_transacciones
+//      WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
+//                     [tx.publicacion_id, id]
+//                 );
+//                 for (const otraTx of otrasTransacciones.rows) {
+//                     await client.query(
+//                         `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [otraTx.id]
+//                     );
+//                     await notificar({
+//                         tipo: 'market_stock_agotado',
+//                         mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
+//                         usuario_id: Number(otraTx.comprador_id),
+//                     });
+//                 }
+//             } else {
+//                 await client.query(
+//                     `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
+//                     [cantidadRestante, tx.publicacion_id]
+//                 );
+//             }
+
+//             // Confirmar y archivar esta transacción
+//             await client.query(
+//                 `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`, [id]
+//             );
+
+//         } else {
+//             // Cancelada — sin tocar stock ni publicación
+//             await client.query(
+//                 `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [id]
+//             );
+//         }
+
+//         await client.query('COMMIT');
+
+//         await notificar({
+//             tipo: 'market_transaccion',
+//             mensaje: `Transacción #${id} de "${tx.nombre_material}" fue ${estado}`,
+//             usuario_id: estado === 'confirmada' ? Number(tx.comprador_id) : Number(tx.vendedor_id),
+//         });
+
+//         return res.status(200).json({ success: true, message: `Transacción ${estado} correctamente` });
+//     } catch (error) {
+//         await client.query('ROLLBACK');
+//         console.error('Error en actualizarTransaccion:', error.message);
+//         return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+//     } finally {
+//         client.release();
+//     }
+// };
+
+
 const actualizarTransaccion = async (req, res) => {
-    const { id } = req.params;
-    const { estado } = req.body;
-    const estadosValidos = ['confirmada', 'cancelada'];
+  const { id } = req.params;
+  const { estado } = req.body;
+  const estadosValidos = ['confirmada', 'cancelada'];
 
-    if (!estadosValidos.includes(estado))
-        return res.status(400).json({ success: false, message: 'Estado inválido.' });
+  if (!estadosValidos.includes(estado))
+    return res.status(400).json({ success: false, message: 'Estado inválido.' });
 
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-        const txResult = await client.query(`
+    const txResult = await client.query(`
       SELECT mt.*, 
              mp.nombre_material, mp.cantidad AS cantidad_publicada, 
              mp.material_id, mp.estado AS pub_estado
@@ -268,123 +409,128 @@ const actualizarTransaccion = async (req, res) => {
       WHERE mt.id = $1
     `, [id]);
 
-        if (txResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
-        }
-
-        const tx = txResult.rows[0];
-
-        const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
-        const esVendedor = Number(tx.vendedor_id) === Number(req.user.userId);
-        const esAdmin = req.user.rol_id === 1;
-
-        if (!esComprador && !esVendedor && !esAdmin) {
-            await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
-        }
-
-        if (tx.estado !== 'pendiente') {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
-        }
-
-        if (estado === 'confirmada' && !esVendedor && !esAdmin) {
-            await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
-        }
-
-        if (estado === 'confirmada') {
-            // Verificar y descontar stock del material
-            if (tx.material_id) {
-                const materialCheck = await client.query(
-                    `SELECT stock_actual FROM materiales WHERE id = $1`, [tx.material_id]
-                );
-                const stockActual = Number(materialCheck.rows[0]?.stock_actual ?? 0);
-
-                if (stockActual < Number(tx.cantidad_comprada)) {
-                    await client.query('ROLLBACK');
-                    return res.status(400).json({
-                        success: false,
-                        message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
-                    });
-                }
-
-                await client.query(
-                    `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
-                    [tx.cantidad_comprada, tx.material_id]
-                );
-            }
-
-            // Leer cantidad ACTUAL de la publicación (no la del JOIN que puede estar desactualizada)
-            const pubResult = await client.query(
-                `SELECT cantidad FROM market_publicaciones WHERE id = $1`, [tx.publicacion_id]
-            );
-            const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
-            const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
-
-            if (cantidadRestante <= 0) {
-                // Marcar publicación como vendida con datos del comprador final
-                await client.query(
-                    `UPDATE market_publicaciones 
-     SET cantidad = 0, estado = 'vendida', 
-         comprador_final_id = $1, fecha_venta = NOW(),
-         updated_at = NOW() 
-     WHERE id = $2`,
-                    [tx.comprador_id, tx.publicacion_id]
-                );
-
-                // Cancelar otras transacciones pendientes
-                const otrasTransacciones = await client.query(
-                    `SELECT id, comprador_id FROM market_transacciones
-     WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
-                    [tx.publicacion_id, id]
-                );
-                for (const otraTx of otrasTransacciones.rows) {
-                    await client.query(
-                        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [otraTx.id]
-                    );
-                    await notificar({
-                        tipo: 'market_stock_agotado',
-                        mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
-                        usuario_id: Number(otraTx.comprador_id),
-                    });
-                }
-            } else {
-                await client.query(
-                    `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
-                    [cantidadRestante, tx.publicacion_id]
-                );
-            }
-
-            // Confirmar y archivar esta transacción
-            await client.query(
-                `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`, [id]
-            );
-
-        } else {
-            // Cancelada — sin tocar stock ni publicación
-            await client.query(
-                `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`, [id]
-            );
-        }
-
-        await client.query('COMMIT');
-
-        await notificar({
-            tipo: 'market_transaccion',
-            mensaje: `Transacción #${id} de "${tx.nombre_material}" fue ${estado}`,
-            usuario_id: estado === 'confirmada' ? Number(tx.comprador_id) : Number(tx.vendedor_id),
-        });
-
-        return res.status(200).json({ success: true, message: `Transacción ${estado} correctamente` });
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Error en actualizarTransaccion:', error.message);
-        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-    } finally {
-        client.release();
+    if (txResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Transacción no encontrada' });
     }
+
+    const tx = txResult.rows[0];
+
+    const esComprador = Number(tx.comprador_id) === Number(req.user.userId);
+    const esVendedor  = Number(tx.vendedor_id)  === Number(req.user.userId);
+    const esAdmin     = req.user.rol_id === 1;
+
+    if (!esComprador && !esVendedor && !esAdmin) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta transacción' });
+    }
+
+    if (tx.estado !== 'pendiente') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Solo se pueden modificar transacciones pendientes' });
+    }
+
+    if (estado === 'confirmada' && !esVendedor && !esAdmin) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Solo el vendedor puede confirmar la venta' });
+    }
+
+    if (estado === 'confirmada') {
+
+      // Bloquear material para evitar concurrencia
+      if (tx.material_id) {
+        const materialCheck = await client.query(
+          `SELECT stock_actual FROM materiales WHERE id = $1 FOR UPDATE`,
+          [tx.material_id]
+        );
+        const stockActual = Number(materialCheck.rows[0]?.stock_actual ?? 0);
+
+        if (stockActual < Number(tx.cantidad_comprada)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            message: `Stock insuficiente para confirmar. Stock actual: ${stockActual}`,
+          });
+        }
+
+        await client.query(
+          `UPDATE materiales SET stock_actual = stock_actual - $1, updated_at = NOW() WHERE id = $2`,
+          [tx.cantidad_comprada, tx.material_id]
+        );
+      }
+
+      // Bloquear publicación para evitar concurrencia
+      const pubResult = await client.query(
+        `SELECT cantidad FROM market_publicaciones WHERE id = $1 FOR UPDATE`,
+        [tx.publicacion_id]
+      );
+      const cantidadActualPub = Number(pubResult.rows[0]?.cantidad ?? 0);
+      const cantidadRestante = cantidadActualPub - Number(tx.cantidad_comprada);
+
+      if (cantidadRestante <= 0) {
+        await client.query(
+          `UPDATE market_publicaciones 
+           SET cantidad = 0, estado = 'vendida',
+               comprador_final_id = $1, fecha_venta = NOW(),
+               updated_at = NOW()
+           WHERE id = $2`,
+          [tx.comprador_id, tx.publicacion_id]
+        );
+
+        // Cancelar otras transacciones pendientes y notificar
+        const otrasTransacciones = await client.query(
+          `SELECT id, comprador_id FROM market_transacciones
+           WHERE publicacion_id = $1 AND estado = 'pendiente' AND id != $2`,
+          [tx.publicacion_id, id]
+        );
+        for (const otraTx of otrasTransacciones.rows) {
+          await client.query(
+            `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`,
+            [otraTx.id]
+          );
+          await notificar({
+            tipo: 'market_stock_agotado',
+            mensaje: `Lo sentimos, el stock de "${tx.nombre_material}" ya fue vendido a otro usuario.`,
+            usuario_id: Number(otraTx.comprador_id),
+          });
+        }
+      } else {
+        await client.query(
+          `UPDATE market_publicaciones SET cantidad = $1, updated_at = NOW() WHERE id = $2`,
+          [cantidadRestante, tx.publicacion_id]
+        );
+      }
+
+      // Confirmar y archivar transacción
+      await client.query(
+        `UPDATE market_transacciones SET estado = 'confirmada', archivada = TRUE WHERE id = $1`,
+        [id]
+      );
+
+    } else {
+      // Cancelada — sin tocar stock ni publicación
+      await client.query(
+        `UPDATE market_transacciones SET estado = 'cancelada' WHERE id = $1`,
+        [id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    await notificar({
+      tipo: 'market_transaccion',
+      mensaje: `Transacción #${id} de "${tx.nombre_material}" fue ${estado}`,
+      usuario_id: estado === 'confirmada' ? Number(tx.comprador_id) : Number(tx.vendedor_id),
+    });
+
+    return res.status(200).json({ success: true, message: `Transacción ${estado} correctamente` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error en actualizarTransaccion:', error.message);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
 };
 
 const getMisTransacciones = async (req, res) => {
