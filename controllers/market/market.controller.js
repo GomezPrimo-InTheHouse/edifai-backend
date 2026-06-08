@@ -753,8 +753,8 @@ const subirComprobante = async (req, res) => {
 
 
 const getMisCompras = async (req, res) => {
-  try {
-    const result = await pool.query(`
+    try {
+        const result = await pool.query(`
       SELECT 
         mt.*,
         mp.nombre_material, mp.unidad, mp.moneda,
@@ -768,20 +768,20 @@ const getMisCompras = async (req, res) => {
       ORDER BY mt.created_at DESC
     `, [req.user.userId]);
 
-    return res.status(200).json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error en getMisCompras:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  }
+        return res.status(200).json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error en getMisCompras:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
 };
 const agregarCompraAlInventario = async (req, res) => {
-  const { transaccion_id } = req.params;
-  const client = await pool.connect();
+    const { transaccion_id } = req.params;
+    const client = await pool.connect();
 
-  try {
-    await client.query('BEGIN');
+    try {
+        await client.query('BEGIN');
 
-    const txResult = await pool.query(`
+        const txResult = await pool.query(`
       SELECT mt.*, mp.nombre_material, mp.descripcion, mp.unidad, 
              mp.precio_unitario, mp.material_id
       FROM market_transacciones mt
@@ -789,65 +789,65 @@ const agregarCompraAlInventario = async (req, res) => {
       WHERE mt.id = $1 AND mt.comprador_id = $2 AND mt.estado = 'confirmada'
     `, [transaccion_id, req.user.userId]);
 
-    if (txResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Transacción no encontrada o sin permiso' });
-    }
+        if (txResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Transacción no encontrada o sin permiso' });
+        }
 
-    const tx = txResult.rows[0];
+        const tx = txResult.rows[0];
 
-    // Verificar si ya fue agregado al inventario
-    const yaAgregado = await client.query(
-      `SELECT id FROM materiales 
+        // Verificar si ya fue agregado al inventario
+        const yaAgregado = await client.query(
+            `SELECT id FROM materiales 
        WHERE propietario_id = $1 
          AND nombre = $2 
          AND origen = 'market'
          AND stock_actual = $3`,
-      [req.user.userId, tx.nombre_material, tx.cantidad_comprada]
-    );
+            [req.user.userId, tx.nombre_material, tx.cantidad_comprada]
+        );
 
-    if (yaAgregado.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ success: false, message: 'Este material ya fue agregado a tu inventario' });
-    }
+        if (yaAgregado.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'Este material ya fue agregado a tu inventario' });
+        }
 
-    // Obtener estado activo
-    const estadoResult = await client.query(
-      `SELECT id FROM estados WHERE nombre = 'Disponible' AND ambito = 'material' LIMIT 1`
-    );
-    const estado_id = estadoResult.rows[0]?.id ?? null;
+        // Obtener estado activo
+        const estadoResult = await client.query(
+            `SELECT id FROM estados WHERE nombre = 'Activo' AND ambito = 'material' LIMIT 1`
+        );
+        const estado_id = estadoResult.rows[0]?.id ?? 23;
 
-    // Insertar en materiales con origen = 'market'
-    const result = await client.query(
-      `INSERT INTO materiales 
+        // Insertar en materiales con origen = 'market'
+        const result = await client.query(
+            `INSERT INTO materiales 
         (nombre, descripcion, unidad, stock_actual, precio_unitario, estado_id, propietario_id, origen)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'market')
        RETURNING *`,
-      [
-        tx.nombre_material,
-        tx.descripcion ?? null,
-        tx.unidad,
-        tx.cantidad_comprada,
-        tx.precio_unitario,
-        estado_id,
-        req.user.userId,
-      ]
-    );
+            [
+                tx.nombre_material,
+                tx.descripcion ?? null,
+                tx.unidad,
+                tx.cantidad_comprada,
+                tx.precio_unitario,
+                estado_id,
+                req.user.userId,
+            ]
+        );
 
-    await client.query('COMMIT');
+        await client.query('COMMIT');
 
-    return res.status(201).json({
-      success: true,
-      message: 'Material agregado a tu inventario correctamente.',
-      data: result.rows[0],
-    });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error en agregarCompraAlInventario:', error.message);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  } finally {
-    client.release();
-  }
+        return res.status(201).json({
+            success: true,
+            message: 'Material agregado a tu inventario correctamente.',
+            data: result.rows[0],
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en agregarCompraAlInventario:', error.message);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    } finally {
+        client.release();
+    }
 };
 
 module.exports = {
