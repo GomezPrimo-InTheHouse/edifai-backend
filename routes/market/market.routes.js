@@ -16,6 +16,7 @@ const {
   subirComprobante,
   getMisCompras,
   agregarCompraAlInventario,
+  agregarStockMaterialExistente
 } = require('../../controllers/market/market.controller.js');
 const multer = require('multer');
 
@@ -49,5 +50,5 @@ router.put('/mensajes/leer/:transaccion_id', verificarToken, marcarLeidos);
 router.post('/comprobante/:transaccion_id', verificarToken, uploadComprobante.single('comprobante'), subirComprobante);
 router.get('/compras/mis', verificarToken, getMisCompras);
 router.post('/compras/inventario/:transaccion_id', verificarToken, agregarCompraAlInventario);
-
+router.post('/compras/inventario/:transaccion_id/stock/:material_id', verificarToken, agregarStockMaterialExistente);
 module.exports = router;
