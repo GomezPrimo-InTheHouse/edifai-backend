@@ -189,6 +189,8 @@ const obtenerLaborPorId = async (req, res) => {
 
 const crearLabor = async (req, res) => {
   const client = await pool.connect();
+  console.log('BODY RECIBIDO:', JSON.stringify(req.body));
+
   try {
     const {
       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
