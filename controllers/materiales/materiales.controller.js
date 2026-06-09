@@ -1,10 +1,10 @@
 const pool = require('../../connection/db.js');
 const { notificar } = require('../../helpers/notificar.js');
-const { getFiltro, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPropietario.js');
+const { getFiltroMateriales, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPropietario.js');
 
 const getAllMateriales = async (req, res) => {
   try {
-    const { where, params } = getFiltro(req);
+const { where, params } = getFiltroMateriales(req);
     const result = await pool.query(
       `SELECT * FROM materiales WHERE 1=1 ${where} ORDER BY nombre ASC`,
       params
