@@ -7,7 +7,7 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Rate limiters ──
-const { limiterGeneral, limiterAuth, limiterMarket } = require('./middlewares/rateLimiter.js');
+const {  limiterAuth, limiterMarket } = require('./middlewares/rateLimiter.js');
 app.set('trust proxy', 1);
 
 
@@ -32,7 +32,6 @@ app.use((req, res, next) => {
 });
 
 // ── Rate limiter general (todas las rutas) ──
-app.use(limiterGeneral);
 
 // importar archivo de rutas del market
 const marketRoutes = require('./routes/market/market.routes.js');
