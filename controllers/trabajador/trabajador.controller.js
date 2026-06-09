@@ -556,21 +556,7 @@ const createTrabajador = async (req, res) => {
 
 const getAllTrabajadores = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, parseInt(req.query.limit) || 50);
-    const offset = (page - 1) * limit;
-
     const { where, params } = getFiltro(req);
-
-    const countResult = await pool.query(
-      `SELECT COUNT(DISTINCT t.id) AS total
-       FROM trabajadores t
-       WHERE 1=1 ${where.replace('AND propietario_id', 'AND t.propietario_id')}`,
-      params
-    );
-
-    const total = Number(countResult.rows[0].total ?? countResult.rows[0].count);
-    const totalPages = Math.ceil(total / limit);
 
     const result = await pool.query(`
       SELECT 
@@ -596,21 +582,9 @@ const getAllTrabajadores = async (req, res) => {
       WHERE 1=1 ${where.replace('AND propietario_id', 'AND t.propietario_id')}
       GROUP BY t.id
       ORDER BY t.id
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `, [...params, limit, offset]);
+    `, params);
 
-    return res.status(200).json({
-      success: true,
-      data: result.rows,
-      pagination: {
-        total,
-        totalPages,
-        page,
-        limit,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-    });
+    return res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error al obtener trabajadores:', error);
     return res.status(500).json({ error: 'Error al obtener trabajadores' });
