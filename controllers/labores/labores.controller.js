@@ -186,47 +186,60 @@ const obtenerLaborPorId = async (req, res) => {
 };
 
 // ── Crear labor ───────────────────────────────────────────────
+
 const crearLabor = async (req, res) => {
   const client = await pool.connect();
   try {
     const {
       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-      estado_id, trabajador_id, nombre, especialidad_id,
+      estado_id, trabajador_id, nombre, especialidad_id, modo = 'rapido',
     } = req.body;
+
+    // Sanitizar — convertir '' a null para campos integer opcionales
+    const _trabajador_id = trabajador_id || null;
+    const _especialidad_id = especialidad_id || null;
+    const _estado_id = estado_id || null;
+
+    if (modo === 'rapido' && !_trabajador_id)
+      return res.status(400).json({ success: false, message: 'En modo rápido el trabajador es obligatorio' });
 
     const usuario_creador_id = req.user.userId;
     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
+    const estadoFinal = modo === 'cotizacion' ? 29 : _estado_id;
 
     await client.query('BEGIN');
 
     const result = await client.query(`
       INSERT INTO labores (
         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-        estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        estado_id, trabajador_id, nombre, especialidad_id,
+        usuario_creador_id, propietario_id, modo
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
-    `, [obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-        estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id]);
+    `, [
+      obra_id, descripcion,
+      fecha_inicio_estimada || null, fecha_fin_estimada || null,
+      estadoFinal, _trabajador_id, nombre, _especialidad_id,
+      usuario_creador_id, propietario_id, modo,
+    ]);
 
     const labor = result.rows[0];
 
-    if (trabajador_id) {
+    if (_trabajador_id) {
       await client.query(`
         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
         VALUES ($1, $2) ON CONFLICT DO NOTHING
-      `, [labor.id, trabajador_id]);
+      `, [labor.id, _trabajador_id]);
 
       const fechaDesde = fecha_inicio_estimada
         ? fecha_inicio_estimada.split('T')[0]
         : new Date().toISOString().split('T')[0];
 
-      await vincularEquipoAObra(client, trabajador_id, obra_id, fechaDesde);
+      await vincularEquipoAObra(client, _trabajador_id, obra_id, fechaDesde);
     }
 
     await client.query('COMMIT');
-
     await notificar({ tipo: 'labor_creada', mensaje: `Nueva labor creada: "${nombre}"`, usuario_id: null });
-
     res.status(200).json({ success: true, data: labor });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -236,6 +249,57 @@ const crearLabor = async (req, res) => {
     client.release();
   }
 };
+
+// const crearLabor = async (req, res) => {
+//   const client = await pool.connect();
+//   try {
+//     const {
+//       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//       estado_id, trabajador_id, nombre, especialidad_id,
+//     } = req.body;
+
+//     const usuario_creador_id = req.user.userId;
+//     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
+
+//     await client.query('BEGIN');
+
+//     const result = await client.query(`
+//       INSERT INTO labores (
+//         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id
+//       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+//       RETURNING *
+//     `, [obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id]);
+
+//     const labor = result.rows[0];
+
+//     if (trabajador_id) {
+//       await client.query(`
+//         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
+//         VALUES ($1, $2) ON CONFLICT DO NOTHING
+//       `, [labor.id, trabajador_id]);
+
+//       const fechaDesde = fecha_inicio_estimada
+//         ? fecha_inicio_estimada.split('T')[0]
+//         : new Date().toISOString().split('T')[0];
+
+//       await vincularEquipoAObra(client, trabajador_id, obra_id, fechaDesde);
+//     }
+
+//     await client.query('COMMIT');
+
+//     await notificar({ tipo: 'labor_creada', mensaje: `Nueva labor creada: "${nombre}"`, usuario_id: null });
+
+//     res.status(200).json({ success: true, data: labor });
+//   } catch (error) {
+//     await client.query('ROLLBACK');
+//     console.error('Error al crear labor:', error);
+//     res.status(500).json({ error: 'Error al crear la labor' });
+//   } finally {
+//     client.release();
+//   }
+// };
 
 // ── Actualizar labor ──────────────────────────────────────────
 const actualizarLabor = async (req, res) => {
