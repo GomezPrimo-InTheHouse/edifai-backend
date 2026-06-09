@@ -10,7 +10,6 @@ const PORT = process.env.PORT || 3000;
 const { limiterGeneral, limiterAuth, limiterMarket } = require('./middlewares/rateLimiter.js');
 app.set('trust proxy', 1);
 
-
 app.use(express.json());
 
 // CORS
