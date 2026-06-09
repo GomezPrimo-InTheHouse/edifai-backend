@@ -2,44 +2,72 @@
 //labor_id, obra_id
 const pool = require('../connection/db.js')
 
+// const verificar_especialidad = async (req, res, next) => {
+//     const { especialidad_id } = req.body;
+
+//     const verificar_existencia_especialidad = await pool.query(
+//         `SELECT * FROM especialidades WHERE id = $1`,
+//         [especialidad_id]
+//     )
+//     if (verificar_existencia_especialidad.rows.length === 0) {
+//         return res.status(404).json({ success: false, message: 'Especialidad no encontrada' })
+//     }
+//     next()
+// }
+
+// const verificar_estado = async (req, res, next) => {
+//     const { estado_id } = req.body;
+//     const verificar_existencia_estado = await pool.query(
+//         `SELECT * FROM estados WHERE id = $1`,
+//         [estado_id]
+//     )
+//     if (verificar_existencia_estado.rows.length === 0) {
+//         return res.status(404).json({ success: false, message: 'Estado no encontrado' })
+//     }
+
+//     next()
+
+// }
+
+// const verificar_trabajador = async (req, res, next) => {
+//     const { trabajador_id } = req.body;
+//     const verificar_existencia_trabajador = await pool.query(
+//         `SELECT * FROM trabajadores WHERE id = $1`,
+//         [trabajador_id]
+//     )
+//     if (verificar_existencia_trabajador.rows.length === 0) {
+//         return res.status(404).json({ success: false, message: 'Trabajador no encontrado' })
+//     }
+//     next()
+// }
+
+
 const verificar_especialidad = async (req, res, next) => {
     const { especialidad_id } = req.body;
-
-    const verificar_existencia_especialidad = await pool.query(
-        `SELECT * FROM especialidades WHERE id = $1`,
-        [especialidad_id]
-    )
-    if (verificar_existencia_especialidad.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Especialidad no encontrada' })
-    }
-    next()
-}
+    if (!especialidad_id) return next(); // opcional
+    const result = await pool.query(`SELECT id FROM especialidades WHERE id = $1`, [especialidad_id]);
+    if (result.rows.length === 0)
+        return res.status(404).json({ success: false, message: 'Especialidad no encontrada' });
+    next();
+};
 
 const verificar_estado = async (req, res, next) => {
     const { estado_id } = req.body;
-    const verificar_existencia_estado = await pool.query(
-        `SELECT * FROM estados WHERE id = $1`,
-        [estado_id]
-    )
-    if (verificar_existencia_estado.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Estado no encontrado' })
-    }
-
-    next()
-
-}
+    if (!estado_id) return next(); // opcional en modo cotización
+    const result = await pool.query(`SELECT id FROM estados WHERE id = $1`, [estado_id]);
+    if (result.rows.length === 0)
+        return res.status(404).json({ success: false, message: 'Estado no encontrado' });
+    next();
+};
 
 const verificar_trabajador = async (req, res, next) => {
     const { trabajador_id } = req.body;
-    const verificar_existencia_trabajador = await pool.query(
-        `SELECT * FROM trabajadores WHERE id = $1`,
-        [trabajador_id]
-    )
-    if (verificar_existencia_trabajador.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Trabajador no encontrado' })
-    }
-    next()
-}
+    if (!trabajador_id) return next(); // opcional en modo cotización
+    const result = await pool.query(`SELECT id FROM trabajadores WHERE id = $1`, [trabajador_id]);
+    if (result.rows.length === 0)
+        return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
+    next();
+};
 
 const verificar_usuario = async (req, res, next) => {
     const { usuario_creador_id } = req.body;
