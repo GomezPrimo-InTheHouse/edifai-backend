@@ -56,7 +56,13 @@ app.use('/presupuestoMateriales', require('./routes/presupuestos/presupuestoMate
 app.use('/pagos',          require('./routes/pagos/pagos.routes.js'));
 app.use('/formasPago',     require('./routes/pagos/formasPago.routes.js'));
 app.use('/gastos-imprevistos',         require('./routes/gastos/gastos.routes.js'));
+
+app.use('/labor-presupuestos', require('./routes/labores/labor-presupuesto.routes.js'));
+app.use('/proveedores-externos', require('./routes/labores/proveedor-externo.routes.js'));
+
 // de esta manera tambien puedo llamar la ruta al app.js
+
+
 
 app.use('/market', marketRoutes);
 // Health check - sirve para render y para uptime bot
