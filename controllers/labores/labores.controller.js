@@ -188,8 +188,12 @@ const obtenerLaborPorId = async (req, res) => {
 // ── Crear labor ───────────────────────────────────────────────
 
 const crearLabor = async (req, res) => {
+  // Sanitizar strings vacíos a null antes de todo
+  Object.keys(req.body).forEach(key => {
+    if (req.body[key] === '') req.body[key] = null;
+  });
+
   const client = await pool.connect();
-  console.log('BODY RECIBIDO:', JSON.stringify(req.body));
 
   try {
     const {
@@ -197,10 +201,9 @@ const crearLabor = async (req, res) => {
       estado_id, trabajador_id, nombre, especialidad_id, modo = 'rapido',
     } = req.body;
 
-    // Sanitizar — convertir '' a null para campos integer opcionales
-    const _trabajador_id = trabajador_id || null;
-    const _especialidad_id = especialidad_id || null;
-    const _estado_id = estado_id || null;
+    const _trabajador_id = trabajador_id ?? null;
+    const _especialidad_id = especialidad_id ?? null;
+    const _estado_id = estado_id ?? null;
 
     if (modo === 'rapido' && !_trabajador_id)
       return res.status(400).json({ success: false, message: 'En modo rápido el trabajador es obligatorio' });
@@ -220,7 +223,7 @@ const crearLabor = async (req, res) => {
       RETURNING *
     `, [
       obra_id, descripcion,
-      fecha_inicio_estimada || null, fecha_fin_estimada || null,
+      fecha_inicio_estimada ?? null, fecha_fin_estimada ?? null,
       estadoFinal, _trabajador_id, nombre, _especialidad_id,
       usuario_creador_id, propietario_id, modo,
     ]);
