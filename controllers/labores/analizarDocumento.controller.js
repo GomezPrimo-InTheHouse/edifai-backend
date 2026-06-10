@@ -70,6 +70,8 @@ const analizarDocumento = async (req, res) => {
 
     const rawText = response.content.find(b => b.type === 'text')?.text ?? '{}';
     console.log('RESPUESTA IA RAW:', rawText); // ← agregar esto antes del JSON.parse
+    const cleanText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
     let parsed;
     try {
       parsed = JSON.parse(rawText);
