@@ -188,17 +188,16 @@ const obtenerLaborPorId = async (req, res) => {
 // ── Crear labor ───────────────────────────────────────────────
 
 const crearLabor = async (req, res) => {
-  // Sanitizar strings vacíos a null antes de todo
   Object.keys(req.body).forEach(key => {
     if (req.body[key] === '') req.body[key] = null;
   });
 
   const client = await pool.connect();
-
   try {
     const {
       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
       estado_id, trabajador_id, nombre, especialidad_id, modo = 'rapido',
+      unidad_id, cantidad,
     } = req.body;
 
     const _trabajador_id = trabajador_id ?? null;
@@ -218,14 +217,15 @@ const crearLabor = async (req, res) => {
       INSERT INTO labores (
         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
         estado_id, trabajador_id, nombre, especialidad_id,
-        usuario_creador_id, propietario_id, modo
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        usuario_creador_id, propietario_id, modo, unidad_id, cantidad
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
     `, [
       obra_id, descripcion,
       fecha_inicio_estimada ?? null, fecha_fin_estimada ?? null,
       estadoFinal, _trabajador_id, nombre, _especialidad_id,
       usuario_creador_id, propietario_id, modo,
+      unidad_id ?? null, cantidad ?? null,
     ]);
 
     const labor = result.rows[0];
@@ -310,7 +310,6 @@ const crearLabor = async (req, res) => {
 
 
 const actualizarLabor = async (req, res) => {
-  // Sanitizar strings vacíos a null
   Object.keys(req.body).forEach(key => {
     if (req.body[key] === '') req.body[key] = null;
   });
@@ -319,7 +318,7 @@ const actualizarLabor = async (req, res) => {
   const {
     obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
     estado_id, trabajador_id, nombre, especialidad_id,
-    fecha_inicio_real, fecha_fin_real,
+    fecha_inicio_real, fecha_fin_real, unidad_id, cantidad,
   } = req.body;
 
   const client = await pool.connect();
@@ -352,14 +351,16 @@ const actualizarLabor = async (req, res) => {
         estado_id=$5, trabajador_id=$6, nombre=$7,
         especialidad_id=$8, usuario_creador_id=$9,
         fecha_inicio_real=$10, fecha_fin_real=$11,
+        unidad_id=$12, cantidad=$13,
         updated_at=NOW()
-      WHERE id=$12 RETURNING *
+      WHERE id=$14 RETURNING *
     `, [
       obra_id, descripcion,
       fecha_inicio_estimada || null, fecha_fin_estimada || null,
       estado_id || null, trabajador_id || null, nombre,
       especialidad_id || null, usuario_creador_id,
       fecha_inicio_real || null, fecha_fin_real || null,
+      unidad_id || null, cantidad || null,
       id,
     ]);
 
