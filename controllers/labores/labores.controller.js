@@ -307,7 +307,14 @@ const crearLabor = async (req, res) => {
 // };
 
 // ── Actualizar labor ──────────────────────────────────────────
+
+
 const actualizarLabor = async (req, res) => {
+  // Sanitizar strings vacíos a null
+  Object.keys(req.body).forEach(key => {
+    if (req.body[key] === '') req.body[key] = null;
+  });
+
   const { id } = req.params;
   const {
     obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
@@ -350,8 +357,8 @@ const actualizarLabor = async (req, res) => {
     `, [
       obra_id, descripcion,
       fecha_inicio_estimada || null, fecha_fin_estimada || null,
-      estado_id, trabajador_id, nombre,
-      especialidad_id, usuario_creador_id,
+      estado_id || null, trabajador_id || null, nombre,
+      especialidad_id || null, usuario_creador_id,
       fecha_inicio_real || null, fecha_fin_real || null,
       id,
     ]);
