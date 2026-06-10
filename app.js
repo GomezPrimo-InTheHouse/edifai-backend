@@ -4,7 +4,8 @@ require('dotenv').config();
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // CORS
 app.use((req, res, next) => {
