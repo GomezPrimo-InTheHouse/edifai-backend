@@ -150,6 +150,29 @@ const seleccionarPresupuesto = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Solo se puede confirmar un presupuesto si la labor está Sin asignar' });
     }
 
+    // Obtener datos completos de la labor (nombre, obra_id, propietario_id)
+    const laborResult = await client.query(
+      `SELECT id, nombre, obra_id, propietario_id FROM labores WHERE id = $1`,
+      [presupuesto.labor_id]
+    );
+    const laborData = laborResult.rows[0];
+
+    // Resolver nombre del cotizante para el presupuesto
+    let cotizanteNombre = null;
+    if (presupuesto.trabajador_id) {
+      const tr = await client.query(
+        `SELECT nombre || ' ' || apellido AS nombre FROM trabajadores WHERE id = $1`,
+        [presupuesto.trabajador_id]
+      );
+      cotizanteNombre = tr.rows[0]?.nombre ?? null;
+    } else if (presupuesto.proveedor_externo_id) {
+      const pe = await client.query(
+        `SELECT nombre FROM proveedores_externos WHERE id = $1`,
+        [presupuesto.proveedor_externo_id]
+      );
+      cotizanteNombre = pe.rows[0]?.nombre ?? null;
+    }
+
     // Marcar seleccionado
     await client.query(
       `UPDATE labor_presupuestos SET estado = 'seleccionado' WHERE id = $1`, [id]
@@ -172,17 +195,34 @@ const seleccionarPresupuesto = async (req, res) => {
       WHERE id = $3
     `, [presupuesto.trabajador_id || null, ESTADO_PLANIFICADA, presupuesto.labor_id]);
 
+    // ── Crear registro en tabla presupuestos ──────────────────
+    await client.query(`
+      INSERT INTO presupuestos (
+        nombre, descripcion, labor_id, obra_id,
+        total_estimado, costo_mano_obra,
+        estado_id, propietario_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      `${laborData.nombre}${cotizanteNombre ? ` — ${cotizanteNombre}` : ''}`,
+      `Presupuesto confirmado de cotización para labor "${laborData.nombre}"${cotizanteNombre ? `. Cotizante: ${cotizanteNombre}` : ''}`,
+      presupuesto.labor_id,
+      laborData.obra_id,
+      presupuesto.precio_total ?? presupuesto.precio_unitario,
+      presupuesto.precio_total ?? presupuesto.precio_unitario,
+      5, // Confirmado
+      laborData.propietario_id,
+    ]);
+
     // Notificar trabajadores no seleccionados si corresponde
     for (const row of noSeleccionados.rows) {
       if (row.notificar_trabajador && row.trabajador_id) {
-        // Buscar usuario_id del trabajador
         const usuarioResult = await client.query(
           `SELECT usuario_id FROM trabajadores WHERE id = $1`, [row.trabajador_id]
         );
         if (usuarioResult.rowCount > 0 && usuarioResult.rows[0].usuario_id) {
           await notificar({
             tipo: 'presupuesto_no_seleccionado',
-            mensaje: `Tu presupuesto para la labor "${labor.nombre || '#' + presupuesto.labor_id}" no fue seleccionado`,
+            mensaje: `Tu presupuesto para la labor "${laborData.nombre || '#' + presupuesto.labor_id}" no fue seleccionado`,
             usuario_id: usuarioResult.rows[0].usuario_id,
           });
         }
@@ -197,7 +237,18 @@ const seleccionarPresupuesto = async (req, res) => {
       usuario_id: null,
     });
 
-    return res.status(200).json({ success: true, message: 'Presupuesto confirmado correctamente' });
+    // Informar al frontend si el ganador es proveedor externo (para mostrar modal de registro)
+    const esProveedorExterno = Boolean(presupuesto.proveedor_externo_id && !presupuesto.trabajador_id);
+    const proveedorNombre = esProveedorExterno ? cotizanteNombre : null;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Presupuesto confirmado correctamente',
+      data: {
+        es_proveedor_externo: esProveedorExterno,
+        proveedor_nombre: proveedorNombre,
+      }
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al seleccionar presupuesto:', error);
