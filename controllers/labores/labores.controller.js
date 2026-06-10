@@ -72,6 +72,7 @@ const obtenerLabores = async (req, res) => {
       LEFT JOIN trabajadores t ON t.id = l.trabajador_id
       LEFT JOIN especialidades e ON e.id = l.especialidad_id
       WHERE l.archivado = FALSE
+      AND (l.estado_id IS NULL OR l.estado_id != 2)
       ${where.replace('AND propietario_id', 'AND l.propietario_id')}
       ORDER BY l.id
     `, params);
