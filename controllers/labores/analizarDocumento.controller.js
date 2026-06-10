@@ -37,6 +37,8 @@ Reglas:
 
 // ── POST /labor-presupuestos/analizar-documento ──────────────
 const analizarDocumento = async (req, res) => {
+
+    
   try {
     const { imagen_base64, media_type, texto_libre } = req.body;
 
@@ -67,7 +69,7 @@ const analizarDocumento = async (req, res) => {
     });
 
     const rawText = response.content.find(b => b.type === 'text')?.text ?? '{}';
-
+    console.log('RESPUESTA IA RAW:', rawText); // ← agregar esto antes del JSON.parse
     let parsed;
     try {
       parsed = JSON.parse(rawText);
