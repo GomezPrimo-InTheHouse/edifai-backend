@@ -74,7 +74,7 @@ const analizarDocumento = async (req, res) => {
 
     let parsed;
     try {
-      parsed = JSON.parse(rawText);
+      parsed = JSON.parse(cleanText);
     } catch {
       return res.status(422).json({ success: false, message: 'La IA no pudo estructurar el documento. Intentá con mejor calidad de imagen.' });
     }
