@@ -68,7 +68,7 @@ router.post('/create',
     verificarToken,
     (req, res, next) => { console.log('BODY EN RUTA:', JSON.stringify(req.body)); next(); },
     verificar_estado, verificar_trabajador, verificar_especialidad,
-    verificar_obra, validarFechasObra, verificar_usuario,
+    verificar_obra, validarFechasObra,
     crearLabor
 );
 
