@@ -475,20 +475,22 @@ const obtenerLaboresPorObra = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
 
-    const result = await pool.query(`
-      SELECT
-        l.*,
-        e.nombre                       AS estado_nombre,
-        esp.nombre                     AS especialidad_nombre,
-        t.nombre || ' ' || t.apellido  AS trabajador_nombre
-      FROM labores l
-      LEFT JOIN estados        e   ON e.id   = l.estado_id
-      LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
-      LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
-      WHERE l.obra_id = $${params.length + 1}
-      ${where.replace('AND propietario_id', 'AND l.propietario_id')}
-      ORDER BY l.id ASC
-    `, [...params, obra_id]);
+const result = await pool.query(`
+  SELECT
+    l.*,
+    e.nombre                       AS estado_nombre,
+    esp.nombre                     AS especialidad_nombre,
+    t.nombre || ' ' || t.apellido  AS trabajador_nombre
+  FROM labores l
+  LEFT JOIN estados        e   ON e.id   = l.estado_id
+  LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
+  LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
+  WHERE l.obra_id = $${params.length + 1}
+  AND l.archivado = FALSE
+  AND (l.estado_id IS NULL OR l.estado_id != 2)
+  ${where.replace('AND propietario_id', 'AND l.propietario_id')}
+  ORDER BY l.id ASC
+`, [...params, obra_id]);
 
     return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
