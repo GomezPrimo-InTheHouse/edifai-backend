@@ -1,6 +1,6 @@
 const pool = require('../../connection/db.js');
 const { notificar } = require('../../helpers/notificar.js');
-const { getFiltroMateriales, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPropietario.js');
+const { getFiltroMateriales, ROL_ADMIN_PRIVADO, getFiltro } = require('../../middlewares/filtrarPorPropietario.js');
 
 const getAllMateriales = async (req, res) => {
   try {
