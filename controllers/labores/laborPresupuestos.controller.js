@@ -196,22 +196,26 @@ const seleccionarPresupuesto = async (req, res) => {
     `, [presupuesto.trabajador_id || null, ESTADO_PLANIFICADA, presupuesto.labor_id]);
 
     // ── Crear registro en tabla presupuestos ──────────────────
-    await client.query(`
-      INSERT INTO presupuestos (
-        nombre, descripcion, labor_id, obra_id,
-        total_estimado, costo_mano_obra,
-        estado_id, propietario_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [
-      `${laborData.nombre}${cotizanteNombre ? ` — ${cotizanteNombre}` : ''}`,
-      `Presupuesto confirmado de cotización para labor "${laborData.nombre}"${cotizanteNombre ? `. Cotizante: ${cotizanteNombre}` : ''}`,
-      presupuesto.labor_id,
-      laborData.obra_id,
-      presupuesto.precio_total ?? presupuesto.precio_unitario,
-      presupuesto.precio_total ?? presupuesto.precio_unitario,
-      5, // Confirmado
-      laborData.propietario_id,
-    ]);
+// ── Crear registro en tabla presupuestos ──────────────────
+await client.query(`
+  INSERT INTO presupuestos (
+    nombre, descripcion, labor_id, obra_id,
+    total_estimado, costo_mano_obra,
+    precio_unitario, cantidad,
+    estado_id, propietario_id
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`, [
+  `${laborData.nombre}${cotizanteNombre ? ` — ${cotizanteNombre}` : ''}`,
+  `Presupuesto confirmado de cotización para labor "${laborData.nombre}"${cotizanteNombre ? `. Cotizante: ${cotizanteNombre}` : ''}`,
+  presupuesto.labor_id,
+  laborData.obra_id,
+  presupuesto.precio_total ?? presupuesto.precio_unitario,
+  presupuesto.precio_total ?? presupuesto.precio_unitario,
+  presupuesto.precio_unitario,
+  presupuesto.cantidad,
+  30, // Seleccionado
+  laborData.propietario_id,
+]);
 
     // Notificar trabajadores no seleccionados si corresponde
     for (const row of noSeleccionados.rows) {
