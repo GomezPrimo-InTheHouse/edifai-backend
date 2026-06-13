@@ -22,9 +22,9 @@ const getMaterialesByPresupuesto = async (req, res) => {
         tm.nombre         AS tipo_nombre,
         e.nombre          AS estado_nombre
       FROM presupuesto_materiales pm
-      JOIN materiales m        ON m.id  = pm.material_id
-      LEFT JOIN tipo_material tm ON tm.id = m.tipo_material_id
-      LEFT JOIN estados e       ON e.id  = m.estado_id
+      JOIN materiales m           ON m.id  = pm.material_id
+      LEFT JOIN tipos_materiales tm ON tm.id = m.tipo_material_id
+      LEFT JOIN estados e          ON e.id  = m.estado_id
       WHERE pm.presupuesto_id = $1
       ORDER BY pm.id ASC`,
       [presupuesto_id]
@@ -35,7 +35,6 @@ const getMaterialesByPresupuesto = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
-
 
 
 const updateCantidadMaterial = async (req, res) => {
