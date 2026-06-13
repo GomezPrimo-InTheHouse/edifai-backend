@@ -296,4 +296,73 @@ const listarUnidades = async (req, res) => {
   }
 };
 
-module.exports = { listarPresupuestos, agregarPresupuesto, seleccionarPresupuesto, eliminarPresupuesto,listarUnidades };
+// ── PUT /labor-presupuestos/:id ──────────────────────────────
+const actualizarPresupuesto = async (req, res) => {
+  const { id } = req.params;
+
+  Object.keys(req.body).forEach(key => {
+    if (req.body[key] === '') req.body[key] = null;
+  });
+
+  const { precio_unitario, cantidad, plazo_dias, calidad, garantia, notas } = req.body;
+
+  const client = await pool.connect();
+  try {
+    const presResult = await client.query(
+      `SELECT * FROM labor_presupuestos WHERE id = $1`, [id]
+    );
+    if (presResult.rowCount === 0)
+      return res.status(404).json({ success: false, message: 'Presupuesto no encontrado' });
+
+    const presupuesto = presResult.rows[0];
+
+    if (presupuesto.estado !== 'pendiente')
+      return res.status(400).json({ success: false, message: 'Solo se pueden editar presupuestos en estado pendiente' });
+
+    const { error, message } = await verificarAccesoLabor(client, presupuesto.labor_id, req.user);
+    if (error) return res.status(error).json({ success: false, message });
+
+    const precioUnitarioFinal = precio_unitario != null ? Number(precio_unitario) : Number(presupuesto.precio_unitario);
+    const cantidadFinal = cantidad != null ? Number(cantidad) : (presupuesto.cantidad ? Number(presupuesto.cantidad) : null);
+    const precioTotal = cantidadFinal
+      ? precioUnitarioFinal * cantidadFinal
+      : precioUnitarioFinal;
+
+    const result = await client.query(`
+      UPDATE labor_presupuestos SET
+        precio_unitario = $1,
+        cantidad = $2,
+        precio_total = $3,
+        plazo_dias = $4,
+        calidad = $5,
+        garantia = $6,
+        notas = $7
+      WHERE id = $8
+      RETURNING *
+    `, [
+      precioUnitarioFinal,
+      cantidadFinal,
+      precioTotal,
+      plazo_dias ?? presupuesto.plazo_dias,
+      calidad ?? presupuesto.calidad,
+      garantia ?? presupuesto.garantia,
+      notas ?? presupuesto.notas,
+      id,
+    ]);
+
+    return res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar presupuesto:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+};
+
+module.exports = { listarPresupuestos,
+   agregarPresupuesto, 
+   seleccionarPresupuesto, 
+   eliminarPresupuesto,
+   listarUnidades,
+   actualizarPresupuesto
+   };
