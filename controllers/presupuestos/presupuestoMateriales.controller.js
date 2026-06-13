@@ -6,14 +6,32 @@ const getMaterialesByPresupuesto = async (req, res) => {
   const { presupuesto_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT pm.*, m.nombre as material_nombre, m.unidad
-       FROM presupuesto_materiales pm
-       JOIN materiales m ON pm.material_id = m.id
-       WHERE pm.presupuesto_id = $1`,
+      `SELECT
+        pm.id,
+        pm.presupuesto_id,
+        pm.material_id,
+        pm.cantidad,
+        pm.precio_unitario,
+        pm.subtotal,
+        m.nombre          AS material_nombre,
+        m.descripcion     AS descripcion,
+        m.unidad,
+        m.stock_actual,
+        m.origen,
+        m.tipo_material_id,
+        tm.nombre         AS tipo_nombre,
+        e.nombre          AS estado_nombre
+      FROM presupuesto_materiales pm
+      JOIN materiales m        ON m.id  = pm.material_id
+      LEFT JOIN tipo_material tm ON tm.id = m.tipo_material_id
+      LEFT JOIN estados e       ON e.id  = m.estado_id
+      WHERE pm.presupuesto_id = $1
+      ORDER BY pm.id ASC`,
       [presupuesto_id]
     );
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
+    console.error('Error al obtener materiales del presupuesto:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };

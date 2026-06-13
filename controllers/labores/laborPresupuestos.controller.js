@@ -212,8 +212,8 @@ await client.query(`
   presupuesto.precio_total ?? presupuesto.precio_unitario,
   presupuesto.precio_total ?? presupuesto.precio_unitario,
   presupuesto.precio_unitario,
-  presupuesto.cantidad,
-  30, // Seleccionado
+  presupuesto.cantidad ? Math.round(Number(presupuesto.cantidad)) : null, // ← fix
+  30,
   laborData.propietario_id,
 ]);
 
