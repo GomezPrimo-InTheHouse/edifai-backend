@@ -656,22 +656,27 @@ const obtenerGastosImprevistos = async (req, res) => {
 
     if (esWorker) {
       const resTrabajador = await pool.query(
-        `SELECT id, jefe_id FROM trabajadores WHERE usuario_id = $1`, [req.user.userId]
+        `SELECT id, jefe_id FROM trabajadores WHERE usuario_id = $1`,
+        [req.user.userId]
       );
       if (resTrabajador.rows.length === 0)
         return res.status(200).json({ success: true, data: [] });
 
       const { id: tid, jefe_id } = resTrabajador.rows[0];
+
+      // Si tiene jefe_id, el jefe del equipo es jefe_id; si no, es él mismo
+      const jefeId = jefe_id ?? tid;
+
+      // Traer todo el equipo: el jefe + todos los subordinados de ese jefe
       const resEquipo = await pool.query(`
         SELECT id FROM trabajadores
         WHERE id = $1 OR jefe_id = $1
-           OR (jefe_id = $2 AND $2 IS NOT NULL)
-           OR (id = $2 AND $2 IS NOT NULL)
-      `, [tid, jefe_id]);
+      `, [jefeId]);
 
       const equipoIds = resEquipo.rows.map(r => r.id);
       whereExtra = `AND gi.pagado_por_id = ANY($1)`;
       params = [equipoIds];
+
     } else if (esAdminPrivado) {
       whereExtra = `AND gi.propietario_id = $1`;
       params = [req.user.userId];
