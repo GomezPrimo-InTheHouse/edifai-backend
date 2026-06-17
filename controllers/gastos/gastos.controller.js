@@ -557,15 +557,27 @@ const crearGastoImprevisto = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No se puede especificar deudor_cliente_id y deudor_usuario_id al mismo tiempo' });
 
     let pagador_id = pagado_por_id;
+
     if (!pagado_por_id && pagado_por_nombre) {
       const nombre = pagado_por_nombre.trim().toLowerCase();
       const [resU, resT] = await Promise.all([
-        pool.query(`SELECT id FROM usuarios     WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
-        pool.query(`SELECT id FROM trabajadores WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
+        pool.query(
+          `SELECT id FROM usuarios WHERE LOWER(TRIM(nombre)) = $1`,
+          [nombre]
+        ),
+        pool.query(
+          `SELECT id FROM trabajadores
+           WHERE LOWER(TRIM(nombre || ' ' || apellido)) = $1
+              OR LOWER(TRIM(nombre)) = $1`,
+          [nombre]
+        ),
       ]);
       const matches = [...resU.rows, ...resT.rows];
       if (matches.length === 0)
-        return res.status(404).json({ success: false, message: `No se encontró ninguna persona con el nombre "${pagado_por_nombre}"` });
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró ninguna persona con el nombre "${pagado_por_nombre}"`,
+        });
       pagador_id = matches[0].id;
     }
 
