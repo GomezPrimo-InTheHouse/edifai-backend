@@ -527,6 +527,15 @@ const crearGastoImprevisto = async (req, res) => {
       ticket_url, formas_pago,
     } = req.body;
 
+    // ── LOG 1 ─────────────────────────────────────────────────
+    console.log('📥 Body recibido:', {
+      pagado_por_id,
+      pagado_por_nombre,
+      monto,
+      obra_id,
+      especialidad_id,
+    });
+
     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
 
     const faltantes = [];
@@ -551,20 +560,29 @@ const crearGastoImprevisto = async (req, res) => {
       });
 
     if (!pagado_por_id && !pagado_por_nombre)
-      return res.status(400).json({ success: false, message: 'Debe especificar pagado_por_id o pagado_por_nombre', faltantes: ['pagado_por'] });
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar pagado_por_id o pagado_por_nombre',
+        faltantes: ['pagado_por'],
+      });
 
     if (deudor_cliente_id && deudor_usuario_id)
-      return res.status(400).json({ success: false, message: 'No se puede especificar deudor_cliente_id y deudor_usuario_id al mismo tiempo' });
+      return res.status(400).json({
+        success: false,
+        message: 'No se puede especificar deudor_cliente_id y deudor_usuario_id al mismo tiempo',
+      });
 
     let pagador_id = pagado_por_id;
 
+    // ── LOG 2 ─────────────────────────────────────────────────
+    console.log('🔍 pagador_id inicial (antes de buscar por nombre):', pagador_id);
+
     if (!pagado_por_id && pagado_por_nombre) {
       const nombre = pagado_por_nombre.trim().toLowerCase();
+      console.log('🔎 Buscando por nombre:', nombre);
+
       const [resU, resT] = await Promise.all([
-        pool.query(
-          `SELECT id FROM usuarios WHERE LOWER(TRIM(nombre)) = $1`,
-          [nombre]
-        ),
+        pool.query(`SELECT id FROM usuarios WHERE LOWER(TRIM(nombre)) = $1`, [nombre]),
         pool.query(
           `SELECT id FROM trabajadores
            WHERE LOWER(TRIM(nombre || ' ' || apellido)) = $1
@@ -573,6 +591,8 @@ const crearGastoImprevisto = async (req, res) => {
         ),
       ]);
       const matches = [...resU.rows, ...resT.rows];
+      console.log('🔎 Matches encontrados:', matches);
+
       if (matches.length === 0)
         return res.status(404).json({
           success: false,
@@ -580,6 +600,9 @@ const crearGastoImprevisto = async (req, res) => {
         });
       pagador_id = matches[0].id;
     }
+
+    // ── LOG 3 ─────────────────────────────────────────────────
+    console.log('✅ pagador_id FINAL que se va a insertar:', pagador_id);
 
     const resObra = await pool.query(`SELECT id, nombre, cliente_id FROM obras WHERE id = $1`, [obra_id]);
     if (resObra.rows.length === 0)
@@ -620,6 +643,9 @@ const crearGastoImprevisto = async (req, res) => {
       ]
     );
 
+    // ── LOG 4 ─────────────────────────────────────────────────
+    console.log('💾 Gasto insertado con pagado_por_id:', result.rows[0].pagado_por_id);
+
     const gastoId = result.rows[0].id;
 
     for (const fp of formas_pago) {
@@ -650,10 +676,19 @@ const crearGastoImprevisto = async (req, res) => {
       });
     }
 
-    return res.status(201).json({ success: true, message: 'Gasto imprevisto registrado con éxito', data: result.rows[0] });
+    return res.status(201).json({
+      success: true,
+      message: 'Gasto imprevisto registrado con éxito',
+      data: result.rows[0],
+    });
+
   } catch (error) {
     await client.query('ROLLBACK');
-    return res.status(500).json({ success: false, message: 'Error al registrar el gasto imprevisto', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Error al registrar el gasto imprevisto',
+      error: error.message,
+    });
   } finally {
     client.release();
   }
