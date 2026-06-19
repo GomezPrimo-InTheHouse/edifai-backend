@@ -173,7 +173,7 @@ const getAllObras = async (req, res) => {
       SELECT o.* 
       FROM obras o
       WHERE o.archivado = FALSE
-      AND o.estado_id != 21
+      AND o.estado_id != 21 and o.estado_id != 22
       ${where}
       ORDER BY o.id
     `, params);

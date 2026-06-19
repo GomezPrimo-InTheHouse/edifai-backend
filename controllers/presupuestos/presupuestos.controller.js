@@ -6,12 +6,28 @@ const { getFiltro, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPr
 const getAllPresupuestos = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
-    const result = await pool.query(
-      `SELECT * FROM presupuestos WHERE archivado = FALSE ${where} ORDER BY created_at DESC`,
-      params
-    );
+    const result = await pool.query(`
+      SELECT
+        p.*,
+        l.obra_id,
+        l.trabajador_id,
+        l.nombre        AS labor_nombre,
+        o.nombre        AS obra_nombre,
+        t.nombre        AS jefe_nombre,
+        t.apellido      AS jefe_apellido,
+        e.nombre        AS jefe_especialidad
+      FROM presupuestos p
+      LEFT JOIN labores l        ON l.id = p.labor_id
+      LEFT JOIN obras o          ON o.id = l.obra_id
+      LEFT JOIN trabajadores t   ON t.id = l.trabajador_id
+      LEFT JOIN especialidades e ON e.id = t.especialidad_id
+      WHERE p.archivado = FALSE
+      ${where.replace('AND propietario_id', 'AND p.propietario_id')}
+      ORDER BY p.created_at DESC
+    `, params);
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
+    console.error('Error en getAllPresupuestos:', error.message);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
@@ -19,12 +35,28 @@ const getAllPresupuestos = async (req, res) => {
 const getPresupuestosArchivados = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
-    const result = await pool.query(
-      `SELECT * FROM presupuestos WHERE archivado = TRUE ${where} ORDER BY created_at DESC`,
-      params
-    );
+    const result = await pool.query(`
+      SELECT
+        p.*,
+        l.obra_id,
+        l.trabajador_id,
+        l.nombre        AS labor_nombre,
+        o.nombre        AS obra_nombre,
+        t.nombre        AS jefe_nombre,
+        t.apellido      AS jefe_apellido,
+        e.nombre        AS jefe_especialidad
+      FROM presupuestos p
+      LEFT JOIN labores l        ON l.id = p.labor_id
+      LEFT JOIN obras o          ON o.id = l.obra_id
+      LEFT JOIN trabajadores t   ON t.id = l.trabajador_id
+      LEFT JOIN especialidades e ON e.id = t.especialidad_id
+      WHERE p.archivado = TRUE
+      ${where.replace('AND propietario_id', 'AND p.propietario_id')}
+      ORDER BY p.created_at DESC
+    `, params);
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
+    console.error('Error en getPresupuestosArchivados:', error.message);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
@@ -138,16 +170,18 @@ const updatePresupuesto = async (req, res) => {
   const { nombre, descripcion, estado_id, costo_mano_obra, precio_unitario, cantidad } = req.body;
 
   try {
-    const existente = await pool.query(`SELECT propietario_id FROM presupuestos WHERE id = $1`, [id]);
+    const existente = await pool.query(`SELECT * FROM presupuestos WHERE id = $1`, [id]);
     if (existente.rows.length === 0)
       return res.status(404).json({ success: false, message: 'Presupuesto no encontrado' });
 
-    if (req.user.rol_id === ROL_ADMIN_PRIVADO && existente.rows[0].propietario_id !== req.user.userId)
+    const actual = existente.rows[0];
+
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && actual.propietario_id !== req.user.userId)
       return res.status(403).json({ success: false, message: 'Sin permiso sobre este presupuesto' });
 
-    const costoManoObra = Number(costo_mano_obra ?? 0);
-    const precioUnitario = precio_unitario ? Number(precio_unitario) : null;
-    const cantidadFinal = cantidad ? Number(cantidad) : null;
+    const costoManoObra = costo_mano_obra != null ? Number(costo_mano_obra) : Number(actual.costo_mano_obra ?? 0);
+    const precioUnitario = precio_unitario != null ? Number(precio_unitario) : (actual.precio_unitario != null ? Number(actual.precio_unitario) : null);
+    const cantidadFinal = cantidad != null ? Number(cantidad) : (actual.cantidad != null ? Number(actual.cantidad) : null);
 
     const totalManoObra = precioUnitario && cantidadFinal
       ? precioUnitario * cantidadFinal
@@ -163,7 +197,16 @@ const updatePresupuesto = async (req, res) => {
         ) + $8,
         updated_at=NOW()
        WHERE id=$7 RETURNING *`,
-      [nombre, descripcion, estado_id, costoManoObra, precioUnitario, cantidadFinal, id, totalManoObra]
+      [
+        nombre ?? actual.nombre,
+        descripcion ?? actual.descripcion,
+        estado_id ?? actual.estado_id,
+        costoManoObra,
+        precioUnitario,
+        cantidadFinal,
+        id,
+        totalManoObra,
+      ]
     );
 
     await notificar({ tipo: 'presupuesto_modificado', mensaje: `Presupuesto #${id} fue modificado`, usuario_id: null });

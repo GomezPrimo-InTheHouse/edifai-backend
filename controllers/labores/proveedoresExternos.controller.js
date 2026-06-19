@@ -79,13 +79,20 @@ const vincularTrabajador = async (req, res) => {
       [trabajador_id, id]
     );
 
-    // Si se especifica labor_id, asignar el trabajador a esa labor también
-    if (labor_id) {
-      await client.query(
-        `UPDATE labores SET trabajador_id = $1, updated_at = NOW() WHERE id = $2`,
-        [trabajador_id, labor_id]
-      );
-    }
+// Si se especifica labor_id, asignar el trabajador + especialidad heredada a esa labor también
+if (labor_id) {
+  await client.query(
+    `UPDATE labores SET
+      trabajador_id = $1,
+      especialidad_id = COALESCE(
+        (SELECT especialidad_id FROM trabajadores WHERE id = $1),
+        especialidad_id
+      ),
+      updated_at = NOW()
+    WHERE id = $2`,
+    [trabajador_id, labor_id]
+  );
+}
 
     await client.query('COMMIT');
 

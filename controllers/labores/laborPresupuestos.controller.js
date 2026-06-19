@@ -122,6 +122,7 @@ const agregarPresupuesto = async (req, res) => {
   }
 };
 
+
 // ── PUT /labor-presupuestos/:id/seleccionar ──────────────────
 const seleccionarPresupuesto = async (req, res) => {
   const { id } = req.params;
@@ -157,14 +158,16 @@ const seleccionarPresupuesto = async (req, res) => {
     );
     const laborData = laborResult.rows[0];
 
-    // Resolver nombre del cotizante para el presupuesto
+    // Resolver nombre del cotizante para el presupuesto + especialidad a heredar si es trabajador
     let cotizanteNombre = null;
+    let especialidadTrabajador = null;
     if (presupuesto.trabajador_id) {
       const tr = await client.query(
-        `SELECT nombre || ' ' || apellido AS nombre FROM trabajadores WHERE id = $1`,
+        `SELECT nombre || ' ' || apellido AS nombre, especialidad_id FROM trabajadores WHERE id = $1`,
         [presupuesto.trabajador_id]
       );
       cotizanteNombre = tr.rows[0]?.nombre ?? null;
+      especialidadTrabajador = tr.rows[0]?.especialidad_id ?? null;
     } else if (presupuesto.proveedor_externo_id) {
       const pe = await client.query(
         `SELECT nombre FROM proveedores_externos WHERE id = $1`,
@@ -186,36 +189,36 @@ const seleccionarPresupuesto = async (req, res) => {
       RETURNING id, trabajador_id, notificar_trabajador
     `, [presupuesto.labor_id, id]);
 
-    // Actualizar labor: asignar trabajador si aplica + estado Planificada
+    // Actualizar labor: asignar trabajador + especialidad heredada + estado Planificada
     await client.query(`
       UPDATE labores SET
         trabajador_id = $1,
-        estado_id = $2,
+        especialidad_id = COALESCE($2, especialidad_id),
+        estado_id = $3,
         updated_at = NOW()
-      WHERE id = $3
-    `, [presupuesto.trabajador_id || null, ESTADO_PLANIFICADA, presupuesto.labor_id]);
+      WHERE id = $4
+    `, [presupuesto.trabajador_id || null, especialidadTrabajador, ESTADO_PLANIFICADA, presupuesto.labor_id]);
 
     // ── Crear registro en tabla presupuestos ──────────────────
-// ── Crear registro en tabla presupuestos ──────────────────
-await client.query(`
-  INSERT INTO presupuestos (
-    nombre, descripcion, labor_id, obra_id,
-    total_estimado, costo_mano_obra,
-    precio_unitario, cantidad,
-    estado_id, propietario_id
-  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-`, [
-  `${laborData.nombre}${cotizanteNombre ? ` — ${cotizanteNombre}` : ''}`,
-  `Presupuesto confirmado de cotización para labor "${laborData.nombre}"${cotizanteNombre ? `. Cotizante: ${cotizanteNombre}` : ''}`,
-  presupuesto.labor_id,
-  laborData.obra_id,
-  presupuesto.precio_total ?? presupuesto.precio_unitario,
-  presupuesto.precio_total ?? presupuesto.precio_unitario,
-  presupuesto.precio_unitario,
-  presupuesto.cantidad ? Math.round(Number(presupuesto.cantidad)) : null, // ← fix
-  30,
-  laborData.propietario_id,
-]);
+    await client.query(`
+      INSERT INTO presupuestos (
+        nombre, descripcion, labor_id, obra_id,
+        total_estimado, costo_mano_obra,
+        precio_unitario, cantidad,
+        estado_id, propietario_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      `${laborData.nombre}${cotizanteNombre ? ` — ${cotizanteNombre}` : ''}`,
+      `Presupuesto confirmado de cotización para labor "${laborData.nombre}"${cotizanteNombre ? `. Cotizante: ${cotizanteNombre}` : ''}`,
+      presupuesto.labor_id,
+      laborData.obra_id,
+      presupuesto.precio_total ?? presupuesto.precio_unitario,
+      presupuesto.precio_total ?? presupuesto.precio_unitario,
+      presupuesto.precio_unitario,
+      presupuesto.cantidad ? Math.round(Number(presupuesto.cantidad)) : null,
+      30,
+      laborData.propietario_id,
+    ]);
 
     // Notificar trabajadores no seleccionados si corresponde
     for (const row of noSeleccionados.rows) {
