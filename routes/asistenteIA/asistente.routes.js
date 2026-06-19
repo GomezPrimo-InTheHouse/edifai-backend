@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const verificarToken = require('../../middlewares/verificarToken.js');
+const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 const { enviarMensaje, obtenerSesiones, obtenerMensajes, eliminarSesion, invalidarCache } = require('../../controllers/asistenteIA/asistente.controller.js');
 
 router.use(verificarToken);
