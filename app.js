@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const asistenteRoutes = require('./routes/asistenteIA/asistente.routes.js');
 
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
@@ -64,7 +65,7 @@ app.use('/proveedores-externos', require('./routes/labores/proveedor-externo.rou
 // de esta manera tambien puedo llamar la ruta al app.js
 
 
-
+app.use('/asistente', asistenteRoutes);
 app.use('/market', marketRoutes);
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
