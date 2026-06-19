@@ -217,17 +217,16 @@ const obtenerGastosImprevistos = async (req, res) => {
       params = [req.user.userId];
     }
 
-    const result = await pool.query(
+const result = await pool.query(
       `SELECT gi.*,
               o.nombre   AS obra_nombre,
               e.nombre   AS especialidad_nombre,
               est.nombre AS estado_nombre,
-              COALESCE(u.nombre, tp.nombre || ' ' || tp.apellido) AS pagado_por_nombre
+              tp.nombre || ' ' || tp.apellido AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
-       LEFT JOIN usuarios       u   ON u.id   = gi.pagado_por_id
        LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
        WHERE gi.estado_id != 15 ${whereExtra}
        ORDER BY gi.fecha DESC`,
@@ -304,17 +303,16 @@ const obtenerGastoImprevistoPorId = async (req, res) => {
         return res.status(403).json({ success: false, message: 'No tenés acceso a este gasto' });
     }
 
-    const result = await pool.query(
+const result = await pool.query(
       `SELECT gi.*,
               o.nombre   AS obra_nombre,
               e.nombre   AS especialidad_nombre,
               est.nombre AS estado_nombre,
-              COALESCE(u.nombre, tp.nombre || ' ' || tp.apellido) AS pagado_por_nombre
+              tp.nombre || ' ' || tp.apellido AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
-       LEFT JOIN usuarios       u   ON u.id   = gi.pagado_por_id
        LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
        WHERE gi.id = $1 AND gi.estado_id != 15`,
       [id]
