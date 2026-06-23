@@ -291,9 +291,14 @@ ${contexto}`;
 
 
 
-// ── Conversación ──────────────────────────────────────────────
 async function ejecutarConversacion(messages, systemPrompt, req, intentos = 0) {
   if (intentos > 6) return 'No pude completar la consulta, probá reformular la pregunta.';
+
+  const promptTokens   = Math.round(systemPrompt.length / 4);
+  const messagesTokens = Math.round(JSON.stringify(messages).length / 4);
+  const toolsTokens    = Math.round(JSON.stringify(TOOLS).length / 4);
+  const total          = promptTokens + messagesTokens + toolsTokens;
+  console.log(`[TOKENS] system:${promptTokens} messages:${messagesTokens} tools:${toolsTokens} TOTAL:${total} (intento ${intentos})`);
 
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -308,11 +313,16 @@ async function ejecutarConversacion(messages, systemPrompt, req, intentos = 0) {
     const toolResults = [];
 
     for (const toolUse of toolUses) {
-      const resultado = await ejecutarTool(toolUse.name, toolUse.input, req);
+      const resultado  = await ejecutarTool(toolUse.name, toolUse.input, req);
+      const contenido  = JSON.stringify(resultado);
+      const truncado   = contenido.length > 12000
+        ? contenido.slice(0, 12000) + '...[truncado]'
+        : contenido;
+      console.log(`[TOOL] ${toolUse.name} → ${contenido.length} chars → ${truncado.length} enviado`);
       toolResults.push({
-        type: 'tool_result',
+        type:        'tool_result',
         tool_use_id: toolUse.id,
-        content: JSON.stringify(resultado),
+        content:     truncado,
       });
     }
 
