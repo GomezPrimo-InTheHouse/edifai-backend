@@ -42,7 +42,7 @@ async function presupuestos_borrador(req) {
     LEFT JOIN estados e ON e.id = pr.estado_id
     LEFT JOIN obras o ON o.id = pr.obra_id
     WHERE pr.archivado = FALSE AND e.nombre = 'Borrador'
-    ${where}
+    ${where.replace('AND propietario_id', 'AND pr.propietario_id')}
     ORDER BY dias_en_borrador DESC LIMIT 20
   `, params);
   return r.rows.map(i => ({

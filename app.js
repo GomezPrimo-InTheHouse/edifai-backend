@@ -70,6 +70,7 @@ app.use('/market', marketRoutes);
 
 
 app.use('/resumen', require('./routes/resumen/resumen.routes.js'));
+
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
   status:    'ok',
