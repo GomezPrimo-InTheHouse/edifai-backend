@@ -67,6 +67,9 @@ app.use('/proveedores-externos', require('./routes/labores/proveedor-externo.rou
 
 app.use('/asistente', asistenteRoutes);
 app.use('/market', marketRoutes);
+
+
+app.use('/resumen', require('./routes/resumen/resumen.routes.js'));
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
   status:    'ok',
