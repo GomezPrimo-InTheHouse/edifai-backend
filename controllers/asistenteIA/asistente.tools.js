@@ -219,7 +219,7 @@ async function consultar_obras({ estado_id, busqueda, por_vencer_dias } = {}, re
     LEFT JOIN presupuestos pr        ON (pr.obra_id = o.id OR pr.labor_id = l.id) AND pr.archivado = FALSE
     LEFT JOIN gastos_imprevistos gi  ON gi.obra_id = o.id AND gi.estado_id != 15
     LEFT JOIN trabajadores_obras to2 ON to2.obra_id = o.id
-    WHERE ${condiciones.join(' AND ')} ${where}
+    WHERE ${condiciones.join(' AND ')} ${where.replace('AND propietario_id', 'AND o.propietario_id')}
     GROUP BY o.id, e.nombre
     ORDER BY o.id DESC LIMIT 50
   `, valores);
