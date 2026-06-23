@@ -237,30 +237,37 @@ async function consultar_resumen_obra({ obra_id, obra_nombre } = {}, req) {
   if (req.user.rol_id === ROL_ADMIN_PRIVADO && obra.rows[0].propietario_id !== req.user.userId)
     return { error: 'Sin permiso sobre esta obra' };
 
-  const [labores, trabajadores, presupuestos, gastos] = await Promise.all([
+  const [labores, trabajadores, gastos] = await Promise.all([
     pool.query(`
-      SELECT e.nombre AS estado, COUNT(*)::int AS cantidad
+      SELECT
+        l.id, l.nombre, l.descripcion,
+        l.fecha_inicio_estimada, l.fecha_fin_estimada,
+        l.fecha_inicio_real, l.fecha_fin_real,
+        e.nombre   AS estado_nombre,
+        t.nombre   AS trabajador_nombre,
+        t.apellido AS trabajador_apellido,
+        CASE
+          WHEN l.fecha_fin_estimada < CURRENT_DATE AND l.estado_id NOT IN (14,2)
+          THEN (CURRENT_DATE - l.fecha_fin_estimada::date)
+          ELSE 0
+        END AS dias_atraso
       FROM labores l
       JOIN obras o ON o.id = l.obra_id
-      LEFT JOIN estados e ON e.id = l.estado_id
+      LEFT JOIN estados e      ON e.id = l.estado_id
+      LEFT JOIN trabajadores t ON t.id = l.trabajador_id
       WHERE l.obra_id = $1
         AND l.archivado = FALSE
         AND l.estado_id != 2
         AND o.archivado = FALSE
         AND o.estado_id NOT IN (21, 22)
-      GROUP BY e.nombre
+      ORDER BY l.id ASC
     `, [obra_id]),
+
     pool.query(`
       SELECT COUNT(DISTINCT trabajador_id)::int AS cantidad
       FROM trabajadores_obras WHERE obra_id = $1
     `, [obra_id]),
-    pool.query(`
-      SELECT pr.nombre, pr.total_estimado, pr.costo_mano_obra, e.nombre AS estado
-      FROM presupuestos pr
-      LEFT JOIN estados e ON e.id = pr.estado_id
-      WHERE pr.obra_id = $1 AND pr.archivado = FALSE
-      ORDER BY pr.total_estimado DESC
-    `, [obra_id]),
+
     pool.query(`
       SELECT gi.descripcion, gi.monto, gi.fecha, est.nombre AS estado
       FROM gastos_imprevistos gi
@@ -270,15 +277,98 @@ async function consultar_resumen_obra({ obra_id, obra_nombre } = {}, req) {
     `, [obra_id]),
   ]);
 
-  const totalPresupuestado = presupuestos.rows.reduce((a, p) => a + Number(p.total_estimado ?? 0), 0);
+  const laborIds = labores.rows.map(l => l.id);
+
+  let presupuestosRows = [];
+  if (laborIds.length > 0) {
+    const presupuestosResult = await pool.query(`
+      SELECT
+        pr.id, pr.nombre, pr.total_estimado, pr.costo_mano_obra,
+        e.nombre AS estado,
+        pr.labor_id
+      FROM presupuestos pr
+      LEFT JOIN estados e ON e.id = pr.estado_id
+      WHERE (pr.labor_id = ANY($1) OR pr.obra_id = $2)
+        AND pr.archivado = FALSE
+      ORDER BY pr.labor_id ASC NULLS LAST, pr.total_estimado DESC
+    `, [laborIds, obra_id]);
+    presupuestosRows = presupuestosResult.rows;
+  } else {
+    const presupuestosResult = await pool.query(`
+      SELECT pr.id, pr.nombre, pr.total_estimado, pr.costo_mano_obra,
+             e.nombre AS estado, pr.labor_id
+      FROM presupuestos pr
+      LEFT JOIN estados e ON e.id = pr.estado_id
+      WHERE pr.obra_id = $1 AND pr.archivado = FALSE
+      ORDER BY pr.total_estimado DESC
+    `, [obra_id]);
+    presupuestosRows = presupuestosResult.rows;
+  }
+
+  const presupuestoIds = presupuestosRows.map(p => p.id);
+
+  let materialesRows = [];
+  if (presupuestoIds.length > 0) {
+    const materialesResult = await pool.query(`
+      SELECT
+        pm.presupuesto_id,
+        m.nombre AS material_nombre,
+        m.unidad,
+        pm.cantidad,
+        pm.precio_unitario,
+        (pm.cantidad * pm.precio_unitario)::numeric AS subtotal
+      FROM presupuesto_materiales pm
+      JOIN materiales m ON m.id = pm.material_id
+      WHERE pm.presupuesto_id = ANY($1)
+      ORDER BY pm.presupuesto_id ASC, subtotal DESC
+    `, [presupuestoIds]);
+    materialesRows = materialesResult.rows;
+  }
+
+  // Agrupar materiales por presupuesto_id
+  const materialesPorPresupuesto = {};
+  for (const mat of materialesRows) {
+    if (!materialesPorPresupuesto[mat.presupuesto_id]) {
+      materialesPorPresupuesto[mat.presupuesto_id] = [];
+    }
+    materialesPorPresupuesto[mat.presupuesto_id].push(mat);
+  }
+
+  // Agrupar presupuestos por labor_id
+  const presupuestosPorLabor = {};
+  for (const pr of presupuestosRows) {
+    const key = pr.labor_id ? String(pr.labor_id) : 'obra_directa';
+    if (!presupuestosPorLabor[key]) presupuestosPorLabor[key] = [];
+    presupuestosPorLabor[key].push({
+      ...pr,
+      materiales: materialesPorPresupuesto[pr.id] ?? [],
+    });
+  }
+
+  // Labores enriquecidas con presupuestos y materiales
+  const laboresEnriquecidas = labores.rows.map(l => ({
+    id:                    l.id,
+    nombre:                l.nombre,
+    descripcion:           l.descripcion,
+    trabajador:            l.trabajador_nombre ? `${l.trabajador_nombre} ${l.trabajador_apellido}` : 'Sin asignar',
+    estado:                l.estado_nombre ?? 'Sin estado',
+    fecha_inicio_estimada: l.fecha_inicio_estimada,
+    fecha_fin_estimada:    l.fecha_fin_estimada,
+    fecha_inicio_real:     l.fecha_inicio_real,
+    fecha_fin_real:        l.fecha_fin_real,
+    dias_atraso:           l.dias_atraso,
+    presupuestos:          presupuestosPorLabor[String(l.id)] ?? [],
+  }));
+
+  const totalPresupuestado = presupuestosRows.reduce((a, p) => a + Number(p.total_estimado ?? 0), 0);
   const totalImprevistos   = gastos.rows.reduce((a, g) => a + Number(g.monto ?? 0), 0);
 
   return {
-    obra: obra.rows[0],
-    labores_por_estado: labores.rows,
-    trabajadores_asignados: trabajadores.rows[0]?.cantidad ?? 0,
-    presupuestos: presupuestos.rows,
-    gastos_imprevistos: gastos.rows,
+    obra:                       obra.rows[0],
+    trabajadores_asignados:     trabajadores.rows[0]?.cantidad ?? 0,
+    labores:                    laboresEnriquecidas,
+    presupuestos_directos_obra: presupuestosPorLabor['obra_directa'] ?? [],
+    gastos_imprevistos:         gastos.rows,
     resumen_financiero: {
       total_presupuestado: totalPresupuestado,
       total_imprevistos:   totalImprevistos,
