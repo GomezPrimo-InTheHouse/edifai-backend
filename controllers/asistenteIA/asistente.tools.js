@@ -205,23 +205,28 @@ async function consultar_obras({ estado_id, busqueda, por_vencer_dias } = {}, re
   if (busqueda)        { valores.push(`%${busqueda}%`); condiciones.push(`(o.nombre ILIKE $${valores.length} OR o.ubicacion ILIKE $${valores.length})`); }
   if (por_vencer_dias) { valores.push(por_vencer_dias); condiciones.push(`o.fecha_fin_estimado BETWEEN CURRENT_DATE AND CURRENT_DATE + ($${valores.length} || ' days')::interval`); }
 
+  // Query liviana: sin JOINs pesados, datos agregados por subquery
   const result = await pool.query(`
     SELECT
-      o.id, o.nombre, o.ubicacion, o.fecha_inicio_estimado, o.fecha_fin_estimado,
+      o.id,
+      o.nombre,
+      o.ubicacion,
+      o.fecha_inicio_estimado,
+      o.fecha_fin_estimado,
       e.nombre AS estado_nombre,
-      COALESCE(SUM(DISTINCT pr.total_estimado), 0)::numeric AS total_presupuestado,
-      COALESCE(SUM(DISTINCT gi.monto), 0)::numeric          AS total_imprevistos,
-      COUNT(DISTINCT l.id)::int                             AS cantidad_labores,
-      COUNT(DISTINCT to2.trabajador_id)::int                AS trabajadores_asignados
+      (SELECT COUNT(*)::int FROM labores l
+       WHERE l.obra_id = o.id AND l.archivado = FALSE AND l.estado_id != 2) AS cantidad_labores,
+      (SELECT COUNT(DISTINCT trabajador_id)::int FROM trabajadores_obras
+       WHERE obra_id = o.id) AS trabajadores_asignados,
+      (SELECT COALESCE(SUM(total_estimado), 0)::numeric FROM presupuestos
+       WHERE obra_id = o.id AND archivado = FALSE) AS total_presupuestado,
+      (SELECT COALESCE(SUM(monto), 0)::numeric FROM gastos_imprevistos
+       WHERE obra_id = o.id AND estado_id != 15) AS total_imprevistos
     FROM obras o
-    LEFT JOIN estados e              ON e.id = o.estado_id
-    LEFT JOIN labores l              ON l.obra_id = o.id AND l.archivado = FALSE AND l.estado_id != 2
-    LEFT JOIN presupuestos pr        ON (pr.obra_id = o.id OR pr.labor_id = l.id) AND pr.archivado = FALSE
-    LEFT JOIN gastos_imprevistos gi  ON gi.obra_id = o.id AND gi.estado_id != 15
-    LEFT JOIN trabajadores_obras to2 ON to2.obra_id = o.id
+    LEFT JOIN estados e ON e.id = o.estado_id
     WHERE ${condiciones.join(' AND ')} ${where.replace('AND propietario_id', 'AND o.propietario_id')}
-    GROUP BY o.id, e.nombre
-    ORDER BY o.id DESC LIMIT 50
+    ORDER BY o.id DESC
+    LIMIT 20
   `, valores);
 
   return result.rows;
