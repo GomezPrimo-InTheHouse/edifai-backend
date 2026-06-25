@@ -69,39 +69,62 @@ const verificar_trabajador = async (req, res, next) => {
     next();
 };
 
+// const verificar_usuario = async (req, res, next) => {
+//     const { usuario_creador_id } = req.body;
+
+
+
+//     const verificar_existencia_usuario_creador = await pool.query(
+//         `SELECT * FROM usuarios WHERE id = $1`, [usuario_creador_id])
+
+
+
+//     if (verificar_existencia_usuario_creador.rows.length === 0) {
+//         return res.status(404).json({
+//             success: false, message: 'Usuario creador no encontrado'
+//         })
+//     }
+
+//     next()
+// }
+
+// const verificar_obra = async (req, res, next) => {
+//     const { obra_id } = req.body;
+//     const verificar_existencia_obra = await pool.query(
+//         `SELECT * FROM obras WHERE id = $1`,
+//         [obra_id]
+//     )
+//     if (verificar_existencia_obra.rows.length === 0) {
+//         res.status(404).json({
+//             success: false,
+//             message: 'Obra no encontrada'
+//         })
+//     }
+//     next()
+// }
+
+
 const verificar_usuario = async (req, res, next) => {
     const { usuario_creador_id } = req.body;
-
-
-
-    const verificar_existencia_usuario_creador = await pool.query(
-        `SELECT * FROM usuarios WHERE id = $1`, [usuario_creador_id])
-
-
-
-    if (verificar_existencia_usuario_creador.rows.length === 0) {
-        return res.status(404).json({
-            success: false, message: 'Usuario creador no encontrado'
-        })
+    if (!usuario_creador_id) return next(); // ← agregar guard
+    const result = await pool.query(
+        `SELECT id FROM usuarios WHERE id = $1`, [usuario_creador_id]
+    );
+    if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Usuario creador no encontrado' });
     }
-
-    next()
-}
+    next();
+};
 
 const verificar_obra = async (req, res, next) => {
     const { obra_id } = req.body;
-    const verificar_existencia_obra = await pool.query(
-        `SELECT * FROM obras WHERE id = $1`,
-        [obra_id]
-    )
-    if (verificar_existencia_obra.rows.length === 0) {
-        res.status(404).json({
-            success: false,
-            message: 'Obra no encontrada'
-        })
+    if (!obra_id) return next(); // ← guard por si obra_id no viene en el body
+    const result = await pool.query(`SELECT id FROM obras WHERE id = $1`, [obra_id]);
+    if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Obra no encontrada' }); // ← agregar return
     }
-    next()
-}
+    next();
+};
 
 const verificar_labor = async (req, res, next) => {
     const { labor_id } = req.params;
