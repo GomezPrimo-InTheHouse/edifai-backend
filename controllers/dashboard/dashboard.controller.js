@@ -231,7 +231,6 @@ const getDashboardAdmin = async (req, res) => {
   }
 };
 
-// ── Dashboard Trabajador ── (sin cambios, no tiene propietario_id)
 const getDashboardTrabajador = async (req, res) => {
   const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -255,16 +254,20 @@ const getDashboardTrabajador = async (req, res) => {
       ultimosPagosResult, obraActualResult, equipoResult,
     ] = await Promise.all([
 
+      // Labores — solo de obras activas (estado 18)
       pool.query(`
         SELECT l.*, e.nombre AS estado_nombre, o.nombre AS obra_nombre, o.id AS obra_id
         FROM labores l
         JOIN labores_trabajadores lt ON lt.labor_id = l.id
         LEFT JOIN estados e ON e.id = l.estado_id
         LEFT JOIN obras o ON o.id = l.obra_id
-        WHERE lt.trabajador_id = $1 AND l.estado_id != 2
+        WHERE lt.trabajador_id = $1
+          AND l.estado_id != 2
+          AND (o.estado_id = 18 OR l.obra_id IS NULL)
         ORDER BY l.updated_at DESC
       `, [tid]),
 
+      // Pagos del mes
       pool.query(`
         SELECT
           COUNT(*) AS total_pagos,
@@ -274,6 +277,7 @@ const getDashboardTrabajador = async (req, res) => {
         WHERE trabajador_id = $1 AND DATE(fecha) BETWEEN $2 AND $3
       `, [tid, desdeMs, hastaMs]),
 
+      // Asistencia del mes
       pool.query(`
         SELECT DATE(fecha) AS dia
         FROM presentismos
@@ -281,6 +285,7 @@ const getDashboardTrabajador = async (req, res) => {
         ORDER BY dia ASC
       `, [tid, desdeMs, hastaMs]),
 
+      // Últimos pagos
       pool.query(`
         SELECT p.*, fp.nombre AS forma_pago_nombre
         FROM pagos p
@@ -289,15 +294,18 @@ const getDashboardTrabajador = async (req, res) => {
         ORDER BY p.fecha DESC LIMIT 5
       `, [tid]),
 
+      // Obra actual — solo obras activas (estado 18)
       pool.query(`
         SELECT o.nombre AS obra_nombre, tob.rol_en_obra
         FROM trabajadores_obras tob
         JOIN obras o ON o.id = tob.obra_id
         WHERE tob.trabajador_id = $1
           AND (tob.fecha_hasta IS NULL OR tob.fecha_hasta >= CURRENT_DATE)
+          AND o.estado_id = 18
         ORDER BY tob.fecha_desde DESC LIMIT 1
       `, [tid]),
 
+      // Equipo
       pool.query(`
         SELECT id, nombre, apellido
         FROM trabajadores
@@ -326,8 +334,8 @@ const getDashboardTrabajador = async (req, res) => {
     res.json({
       success: true,
       data: {
-        trabajador: { ...trabajador, equipo: equipoResult.rows },
-        obra_actual:     obraActualResult.rows[0] ?? null,
+        trabajador:  { ...trabajador, equipo: equipoResult.rows },
+        obra_actual: obraActualResult.rows[0] ?? null,
         kpis: {
           labores_activas: laboresResult.rows.length,
           cobrado_mes:     Number(pagos.cobrado),
