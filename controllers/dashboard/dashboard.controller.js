@@ -29,7 +29,6 @@ const getDashboardAdmin = async (req, res) => {
   const esAdminPrivado = req.user.rol_id === ROL_ADMIN_PRIVADO;
   const propietarioId  = req.user.userId;
 
-  // Filtro SQL reutilizable
   const fw  = esAdminPrivado ? `AND propietario_id = ${propietarioId}` : '';
   const fwo = esAdminPrivado ? `AND o.propietario_id = ${propietarioId}` : '';
   const fwl = esAdminPrivado ? `AND l.propietario_id = ${propietarioId}` : '';
@@ -53,28 +52,37 @@ const getDashboardAdmin = async (req, res) => {
       actividadRecienteResult,
     ] = await Promise.all([
 
+      // Obras — solo activas (estado 18)
       pool.query(`
         SELECT COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE e.nombre = 'En proceso') AS activas
+          COUNT(*) FILTER (WHERE o.estado_id = 18) AS activas
         FROM obras o
         LEFT JOIN estados e ON e.id = o.estado_id
-        WHERE 1=1 ${fwo}
+        WHERE o.estado_id = 18
+        ${fwo}
       `),
 
+      // Labores — solo de obras activas
       pool.query(`
         SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE e.nombre NOT IN ('Finalizada')) AS activas
         FROM labores l
         LEFT JOIN estados e ON e.id = l.estado_id
-        WHERE l.estado_id != 2 ${fwl}
+        LEFT JOIN obras o ON o.id = l.obra_id
+        WHERE l.estado_id != 2
+          AND l.archivado = FALSE
+          AND (o.estado_id = 18 OR l.obra_id IS NULL)
+        ${fwl}
       `),
 
+      // Trabajadores activos
       pool.query(`
         SELECT COUNT(*) AS total
         FROM trabajadores
         WHERE estado_id = 1 ${fw}
       `),
 
+      // Presupuestos
       pool.query(`
         SELECT COUNT(*) AS total,
           COUNT(*) FILTER (WHERE e.nombre = 'Confirmado') AS confirmados,
@@ -84,6 +92,7 @@ const getDashboardAdmin = async (req, res) => {
         WHERE 1=1 ${fwp}
       `),
 
+      // Pagos del período
       pool.query(`
         SELECT
           COUNT(*) AS total_pagos,
@@ -93,6 +102,7 @@ const getDashboardAdmin = async (req, res) => {
         WHERE DATE(fecha) BETWEEN $1 AND $2 ${fwp}
       `, [desde, hasta]),
 
+      // Presentismo hoy
       pool.query(`
         SELECT
           COUNT(DISTINCT trabajador_id) AS presentes_hoy,
@@ -101,6 +111,7 @@ const getDashboardAdmin = async (req, res) => {
         WHERE DATE(fecha) = CURRENT_DATE
       `),
 
+      // Ausentes hoy — solo obras activas
       pool.query(`
         SELECT DISTINCT ON (t.id)
           t.id, t.nombre, t.apellido, o.nombre AS obra_nombre
@@ -108,6 +119,7 @@ const getDashboardAdmin = async (req, res) => {
         JOIN trabajadores t ON t.id = tob.trabajador_id
         JOIN obras o ON o.id = tob.obra_id
         WHERE t.estado_id = 1
+          AND o.estado_id = 18
           AND (tob.fecha_hasta IS NULL OR tob.fecha_hasta >= CURRENT_DATE)
           AND t.id NOT IN (
             SELECT DISTINCT trabajador_id FROM presentismos
@@ -118,6 +130,7 @@ const getDashboardAdmin = async (req, res) => {
         LIMIT 10
       `),
 
+      // Materiales críticos
       pool.query(`
         SELECT id, nombre, stock_actual, unidad
         FROM materiales
@@ -128,12 +141,14 @@ const getDashboardAdmin = async (req, res) => {
         LIMIT 5
       `),
 
+      // Logins hoy
       pool.query(`
         SELECT COUNT(*) AS total
         FROM sesiones
         WHERE DATE(created_at) = CURRENT_DATE
       `),
 
+      // Evolución pagos últimos 6 meses
       pool.query(`
         SELECT
           TO_CHAR(DATE_TRUNC('month', fecha), 'Mon') AS mes,
@@ -145,24 +160,32 @@ const getDashboardAdmin = async (req, res) => {
         ORDER BY fecha_mes ASC
       `),
 
+      // Obras por estado — solo activas
       pool.query(`
         SELECT e.nombre AS estado, COUNT(*) AS total
         FROM obras o
         LEFT JOIN estados e ON e.id = o.estado_id
-        WHERE 1=1 ${fwo}
+        WHERE o.estado_id = 18
+        ${fwo}
         GROUP BY e.nombre
         ORDER BY total DESC
       `),
 
+      // Labores por progreso — solo obras activas
       pool.query(`
         SELECT e.nombre AS estado, COUNT(*) AS total
         FROM labores l
         LEFT JOIN estados e ON e.id = l.estado_id
-        WHERE l.estado_id != 2 ${fwl}
+        LEFT JOIN obras o ON o.id = l.obra_id
+        WHERE l.estado_id != 2
+          AND l.archivado = FALSE
+          AND (o.estado_id = 18 OR l.obra_id IS NULL)
+        ${fwl}
         GROUP BY e.nombre
         ORDER BY total DESC
       `),
 
+      // Actividad reciente
       pool.query(
         esAdminPrivado
           ? `SELECT tipo, mensaje, created_at
@@ -217,12 +240,12 @@ const getDashboardAdmin = async (req, res) => {
           materiales_criticos: Number(materialesCriticosResult.rows.length),
           logins_hoy:          Number(loginsResult.rows[0].total),
         },
-        ausentes_hoy:        ausentesResult.rows,
-        materiales_criticos: materialesCriticosResult.rows,
-        pagos_evolucion:     pagosEvolucionResult.rows.map(r => ({ mes: r.mes, total: Number(r.total) })),
-        obras_por_estado:    obrasPorEstadoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
+        ausentes_hoy:         ausentesResult.rows,
+        materiales_criticos:  materialesCriticosResult.rows,
+        pagos_evolucion:      pagosEvolucionResult.rows.map(r => ({ mes: r.mes, total: Number(r.total) })),
+        obras_por_estado:     obrasPorEstadoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
         labores_por_progreso: laboresPorProgresoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
-        actividad_reciente:  actividadRecienteResult.rows,
+        actividad_reciente:   actividadRecienteResult.rows,
       },
     });
   } catch (error) {
