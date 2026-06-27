@@ -55,7 +55,6 @@ const desvincularEquipoDeObraIfSinLabores = async (client, trabajador_id, obra_i
   }
 };
 
-// ── Obtener todas las labores ─────────────────────────────────
 const obtenerLabores = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
@@ -73,6 +72,7 @@ const obtenerLabores = async (req, res) => {
       LEFT JOIN especialidades e ON e.id = l.especialidad_id
       WHERE l.archivado = FALSE
       AND (l.estado_id IS NULL OR l.estado_id != 2)
+      AND (o.estado_id = 18 OR l.obra_id IS NULL)
       ${where.replace('AND propietario_id', 'AND l.propietario_id')}
       ORDER BY l.id
     `, params);
@@ -111,7 +111,6 @@ const obtenerLaboresArchivadas = async (req, res) => {
   }
 };
 
-// ── Obtener mis labores (trabajador logueado) ─────────────────
 const obtenerMisLabores = async (req, res) => {
   try {
     const userId = req.user?.userId;
@@ -131,14 +130,20 @@ const obtenerMisLabores = async (req, res) => {
     const result = await pool.query(`
       SELECT DISTINCT l.*
       FROM labores l
+      LEFT JOIN obras o ON o.id = l.obra_id
       WHERE l.trabajador_id = $1
+        AND l.archivado = FALSE
+        AND (o.estado_id = 18 OR l.obra_id IS NULL)
 
       UNION
 
       SELECT DISTINCT l.*
       FROM labores l
       JOIN labores_trabajadores lt ON lt.labor_id = l.id
+      LEFT JOIN obras o ON o.id = l.obra_id
       WHERE lt.trabajador_id = $1
+        AND l.archivado = FALSE
+        AND (o.estado_id = 18 OR l.obra_id IS NULL)
 
       ORDER BY id ASC
     `, [trabajadorId]);
