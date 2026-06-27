@@ -63,17 +63,18 @@ const getDashboardAdmin = async (req, res) => {
       `),
 
       // Labores — solo de obras activas
-      pool.query(`
-        SELECT COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE e.nombre NOT IN ('Finalizada')) AS activas
-        FROM labores l
-        LEFT JOIN estados e ON e.id = l.estado_id
-        LEFT JOIN obras o ON o.id = l.obra_id
-        WHERE l.estado_id != 2
-          AND l.archivado = FALSE
-          AND (o.estado_id = 18 OR l.obra_id IS NULL)
-        ${fwl}
-      `),
+  // Labores — solo de obras activas
+pool.query(`
+  SELECT COUNT(*) AS total,
+    COUNT(*) FILTER (WHERE e.nombre NOT IN ('Finalizada', 'Sin asignar')) AS activas
+  FROM labores l
+  LEFT JOIN estados e ON e.id = l.estado_id
+  LEFT JOIN obras o ON o.id = l.obra_id
+  WHERE l.estado_id != 2
+    AND l.archivado = FALSE
+    AND (o.estado_id = 18 OR l.obra_id IS NULL)
+  ${fwl}
+`),
 
       // Trabajadores activos
       pool.query(`
