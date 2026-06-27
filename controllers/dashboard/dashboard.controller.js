@@ -52,13 +52,13 @@ const getDashboardAdmin = async (req, res) => {
       actividadRecienteResult,
     ] = await Promise.all([
 
-      // Obras — solo activas (estado 18)
+      // Obras — total real + activas (estado 18)
       pool.query(`
-        SELECT COUNT(*) AS total,
+        SELECT
+          COUNT(*) AS total,
           COUNT(*) FILTER (WHERE o.estado_id = 18) AS activas
         FROM obras o
-        LEFT JOIN estados e ON e.id = o.estado_id
-        WHERE o.estado_id = 18
+        WHERE 1=1
         ${fwo}
       `),
 
@@ -160,13 +160,12 @@ const getDashboardAdmin = async (req, res) => {
         ORDER BY fecha_mes ASC
       `),
 
-      // Obras por estado — solo activas
+      // Obras por estado — todas para el gráfico
       pool.query(`
         SELECT e.nombre AS estado, COUNT(*) AS total
         FROM obras o
         LEFT JOIN estados e ON e.id = o.estado_id
-        WHERE o.estado_id = 18
-        ${fwo}
+        WHERE 1=1 ${fwo}
         GROUP BY e.nombre
         ORDER BY total DESC
       `),
