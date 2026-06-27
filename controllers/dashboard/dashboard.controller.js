@@ -27,9 +27,9 @@ const getDashboardAdmin = async (req, res) => {
   }
 
   const esAdminPrivado = req.user.rol_id === ROL_ADMIN_PRIVADO;
-  const propietarioId  = req.user.userId;
+  const propietarioId = req.user.userId;
 
-  const fw  = esAdminPrivado ? `AND propietario_id = ${propietarioId}` : '';
+  const fw = esAdminPrivado ? `AND propietario_id = ${propietarioId}` : '';
   const fwo = esAdminPrivado ? `AND o.propietario_id = ${propietarioId}` : '';
   const fwl = esAdminPrivado ? `AND l.propietario_id = ${propietarioId}` : '';
   const fwp = esAdminPrivado ? `AND p.propietario_id = ${propietarioId}` : '';
@@ -52,19 +52,19 @@ const getDashboardAdmin = async (req, res) => {
       actividadRecienteResult,
     ] = await Promise.all([
 
-      // Obras — total real + activas (estado 18)
+      // Obras — solo activas (estados 18 y 3)
       pool.query(`
-        SELECT
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE o.estado_id = 18) AS activas
-        FROM obras o
-        WHERE 1=1
-        ${fwo}
-      `),
+  SELECT
+    COUNT(*) FILTER (WHERE o.estado_id IN (18, 3)) AS total,
+    COUNT(*) FILTER (WHERE o.estado_id IN (18, 3)) AS activas
+  FROM obras o
+  WHERE 1=1
+  ${fwo}
+`),
 
       // Labores — solo de obras activas
-  // Labores — solo de obras activas
-pool.query(`
+      // Labores — solo de obras activas
+      pool.query(`
   SELECT COUNT(*) AS total,
     COUNT(*) FILTER (WHERE e.nombre NOT IN ('Finalizada', 'Sin asignar')) AS activas
   FROM labores l
@@ -212,40 +212,40 @@ pool.query(`
         periodo: { desde, hasta },
         kpis: {
           obras: {
-            total:   Number(obrasResult.rows[0].total),
+            total: Number(obrasResult.rows[0].total),
             activas: Number(obrasResult.rows[0].activas),
           },
           labores: {
-            total:   Number(laboresResult.rows[0].total),
+            total: Number(laboresResult.rows[0].total),
             activas: Number(laboresResult.rows[0].activas),
           },
           trabajadores: {
             total: Number(trabajadoresResult.rows[0].total),
           },
           presupuestos: {
-            total:       Number(presupuestosResult.rows[0].total),
+            total: Number(presupuestosResult.rows[0].total),
             confirmados: Number(presupuestosResult.rows[0].confirmados),
-            borradores:  Number(presupuestosResult.rows[0].borradores),
+            borradores: Number(presupuestosResult.rows[0].borradores),
           },
           pagos: {
-            total_pagos:     Number(pagosResult.rows[0].total_pagos),
-            total_pagado:    Number(pagosResult.rows[0].total_pagado),
+            total_pagos: Number(pagosResult.rows[0].total_pagos),
+            total_pagado: Number(pagosResult.rows[0].total_pagado),
             total_pendiente: Number(pagosResult.rows[0].total_pendiente),
           },
           asistencia: {
-            presentes_hoy:      Number(presentismo.presentes_hoy),
+            presentes_hoy: Number(presentismo.presentes_hoy),
             total_trabajadores: Number(presentismo.total_trabajadores),
-            tasa:               tasaAsistencia,
+            tasa: tasaAsistencia,
           },
           materiales_criticos: Number(materialesCriticosResult.rows.length),
-          logins_hoy:          Number(loginsResult.rows[0].total),
+          logins_hoy: Number(loginsResult.rows[0].total),
         },
-        ausentes_hoy:         ausentesResult.rows,
-        materiales_criticos:  materialesCriticosResult.rows,
-        pagos_evolucion:      pagosEvolucionResult.rows.map(r => ({ mes: r.mes, total: Number(r.total) })),
-        obras_por_estado:     obrasPorEstadoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
+        ausentes_hoy: ausentesResult.rows,
+        materiales_criticos: materialesCriticosResult.rows,
+        pagos_evolucion: pagosEvolucionResult.rows.map(r => ({ mes: r.mes, total: Number(r.total) })),
+        obras_por_estado: obrasPorEstadoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
         labores_por_progreso: laboresPorProgresoResult.rows.map(r => ({ estado: r.estado ?? 'Sin estado', total: Number(r.total) })),
-        actividad_reciente:   actividadRecienteResult.rows,
+        actividad_reciente: actividadRecienteResult.rows,
       },
     });
   } catch (error) {
@@ -357,22 +357,22 @@ const getDashboardTrabajador = async (req, res) => {
     res.json({
       success: true,
       data: {
-        trabajador:  { ...trabajador, equipo: equipoResult.rows },
+        trabajador: { ...trabajador, equipo: equipoResult.rows },
         obra_actual: obraActualResult.rows[0] ?? null,
         kpis: {
           labores_activas: laboresResult.rows.length,
-          cobrado_mes:     Number(pagos.cobrado),
-          pendiente_mes:   Number(pagos.pendiente),
+          cobrado_mes: Number(pagos.cobrado),
+          pendiente_mes: Number(pagos.pendiente),
           tasa_asistencia: tasaAsistencia,
-          dias_marcados:   diasMarcados.length,
-          dias_habiles:    diasHabiles,
+          dias_marcados: diasMarcados.length,
+          dias_habiles: diasHabiles,
         },
-        labores:         laboresResult.rows,
+        labores: laboresResult.rows,
         dias_asistencia: diasMarcados,
-        ultimos_pagos:   ultimosPagosResult.rows,
+        ultimos_pagos: ultimosPagosResult.rows,
         mes_actual: {
           anio: mesActual.getFullYear(),
-          mes:  mesActual.getMonth() + 1,
+          mes: mesActual.getMonth() + 1,
           dias: diasMes,
         },
       },
