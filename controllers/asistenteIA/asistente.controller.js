@@ -285,6 +285,7 @@ IMPORTANTE — identificación de obras: nunca le pidas el ID de una obra al usu
 Cuando el usuario pregunte cuánto se gastó, costó o invirtió en una obra, usá consultar_costo_total_obra — esa tool suma materiales usados, mano de obra presupuestada y gastos imprevistos, y te da un desglose completo. No sumes manualmente con otras tools si esta ya existe.
 
 Si ninguna tool disponible te permite responder la pregunta del usuario, llamá a reportar_consulta_no_resuelta con la pregunta exacta y el motivo, y luego explicale honestamente al usuario que no podés responder eso todavía — nunca inventes una respuesta.
+Cuando el usuario pregunte cómo usar el sistema, cómo hacer algo paso a paso, qué significa un término, cuáles son las reglas de negocio o cómo funciona un módulo, usá la tool consultar_manual antes de responder. No inventes procedimientos — siempre basate en lo que devuelve el manual.
 
 ${contexto}`;
 }

@@ -189,6 +189,25 @@ const TOOLS = [
       required: ['pregunta_original', 'motivo'],
     },
   },
+  // Agregar al array TOOLS:
+{
+  name: 'consultar_manual',
+  description: 'Consultá el manual operativo de EdifAI cuando el usuario pregunte cómo usar el sistema, cómo hacer algo, cuáles son las reglas de negocio, o qué significa algún concepto. Usá esta tool antes de decir que no sabés algo operativo.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      consulta: {
+        type: 'string',
+        description: 'La pregunta o tema a buscar en el manual. Usá palabras clave relevantes.',
+      },
+      modulo: {
+        type: 'string',
+        description: 'Filtrar por módulo específico (opcional): obras, labores, presupuestos, trabajadores, pagos, presentismo, materiales, gastos_imprevistos, market, dashboard, puntos, ia, general',
+      },
+    },
+    required: ['consulta'],
+  },
+},
 ];
 
 // ── tools ─────────────────────────────────────────────────────
@@ -906,8 +925,67 @@ async function reportar_consulta_no_resuelta({ pregunta_original, motivo } = {},
   }
 }
 
+
+async function consultar_manual({ consulta, modulo } = {}) {
+  try {
+    const condiciones = ['activo = TRUE'];
+    const params = [];
+
+    if (modulo) {
+      params.push(modulo);
+      condiciones.push(`modulo = $${params.length}`);
+    }
+
+    params.push(consulta);
+    const tsQuery = `$${params.length}`;
+
+    const result = await pool.query(`
+      SELECT
+        modulo, flujo, titulo, contenido, keywords,
+        ts_rank(
+          to_tsvector('spanish', titulo || ' ' || contenido || ' ' || COALESCE(keywords, '')),
+          plainto_tsquery('spanish', ${tsQuery})
+        ) AS relevancia
+      FROM manual_edifai
+      WHERE ${condiciones.join(' AND ')}
+        AND to_tsvector('spanish', titulo || ' ' || contenido || ' ' || COALESCE(keywords, ''))
+            @@ plainto_tsquery('spanish', ${tsQuery})
+      ORDER BY relevancia DESC
+      LIMIT 3
+    `, params);
+
+    if (result.rowCount === 0) {
+      // Fallback: búsqueda por ILIKE si el full-text no encuentra nada
+      const fallback = await pool.query(`
+        SELECT modulo, flujo, titulo, contenido, keywords
+        FROM manual_edifai
+        WHERE activo = TRUE
+          ${modulo ? `AND modulo = '${modulo}'` : ''}
+          AND (
+            titulo    ILIKE $1 OR
+            contenido ILIKE $1 OR
+            keywords  ILIKE $1
+          )
+        ORDER BY orden ASC
+        LIMIT 3
+      `, [`%${consulta}%`]);
+
+      if (fallback.rowCount === 0)
+        return { encontrado: false, mensaje: 'No se encontró información sobre ese tema en el manual.' };
+
+      return { encontrado: true, secciones: fallback.rows };
+    }
+
+    return { encontrado: true, secciones: result.rows };
+  } catch (error) {
+    console.error('Error consultando manual:', error);
+    return { error: 'Error al consultar el manual.' };
+  }
+}
+
 // ── dispatcher ────────────────────────────────────────────────
 const EJECUTORES = {
+  consultar_manual,
   consultar_obras,
   consultar_resumen_obra,
   consultar_costo_total_obra,
