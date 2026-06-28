@@ -178,6 +178,24 @@ const TOOLS = [
     },
   },
   {
+    name: 'consultar_manual',
+    description: 'Consultá el manual operativo de EdifAI SIEMPRE que el usuario pregunte cómo usar el sistema, cómo hacer algo paso a paso, qué significa un término, cómo funciona un módulo o cuáles son las reglas. Usá palabras clave simples en español sin tildes. Por ejemplo: para "como crear una obra" usá consulta: "crear obra". NUNCA respondas preguntas operativas sin consultar esta tool primero.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        consulta: {
+          type: 'string',
+          description: 'La pregunta o tema a buscar en el manual. Usá palabras clave simples sin tildes.',
+        },
+        modulo: {
+          type: 'string',
+          description: 'Filtrar por módulo específico (opcional): obras, labores, presupuestos, trabajadores, pagos, presentismo, materiales, gastos_imprevistos, market, dashboard, puntos, ia, general',
+        },
+      },
+      required: ['consulta'],
+    },
+  },
+  {
     name: 'reportar_consulta_no_resuelta',
     description: 'Usá esta tool SOLO cuando ninguna de las tools disponibles te permite responder la pregunta del usuario. Registra la limitación para revisión futura. Después explicale honestamente al usuario que no podés responder eso todavía.',
     input_schema: {
@@ -189,25 +207,6 @@ const TOOLS = [
       required: ['pregunta_original', 'motivo'],
     },
   },
-  // Agregar al array TOOLS:
-{
-  name: 'consultar_manual',
-  description: 'Consultá el manual operativo de EdifAI cuando el usuario pregunte cómo usar el sistema, cómo hacer algo, cuáles son las reglas de negocio, o qué significa algún concepto. Usá esta tool antes de decir que no sabés algo operativo.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      consulta: {
-        type: 'string',
-        description: 'La pregunta o tema a buscar en el manual. Usá palabras clave relevantes.',
-      },
-      modulo: {
-        type: 'string',
-        description: 'Filtrar por módulo específico (opcional): obras, labores, presupuestos, trabajadores, pagos, presentismo, materiales, gastos_imprevistos, market, dashboard, puntos, ia, general',
-      },
-    },
-    required: ['consulta'],
-  },
-},
 ];
 
 // ── tools ─────────────────────────────────────────────────────
@@ -936,45 +935,31 @@ async function consultar_manual({ consulta, modulo } = {}) {
       condiciones.push(`modulo = $${params.length}`);
     }
 
-    params.push(consulta);
-    const tsQuery = `$${params.length}`;
+    // Búsqueda ILIKE directa — más confiable con texto sin tildes
+    params.push(`%${consulta}%`);
+    const idxConsulta = params.length;
+
+    // También buscar por palabras individuales
+    const palabras = consulta.toLowerCase().split(/\s+/).filter(p => p.length > 3);
+    const condicionesBusqueda = [`titulo ILIKE $${idxConsulta}`, `contenido ILIKE $${idxConsulta}`, `keywords ILIKE $${idxConsulta}`];
+
+    for (const palabra of palabras.slice(0, 5)) {
+      params.push(`%${palabra}%`);
+      const idx = params.length;
+      condicionesBusqueda.push(`titulo ILIKE $${idx}`, `contenido ILIKE $${idx}`, `keywords ILIKE $${idx}`);
+    }
 
     const result = await pool.query(`
-      SELECT
-        modulo, flujo, titulo, contenido, keywords,
-        ts_rank(
-          to_tsvector('spanish', titulo || ' ' || contenido || ' ' || COALESCE(keywords, '')),
-          plainto_tsquery('spanish', ${tsQuery})
-        ) AS relevancia
+      SELECT modulo, flujo, titulo, contenido, keywords
       FROM manual_edifai
       WHERE ${condiciones.join(' AND ')}
-        AND to_tsvector('spanish', titulo || ' ' || contenido || ' ' || COALESCE(keywords, ''))
-            @@ plainto_tsquery('spanish', ${tsQuery})
-      ORDER BY relevancia DESC
-      LIMIT 3
+        AND (${condicionesBusqueda.join(' OR ')})
+      ORDER BY orden ASC
+      LIMIT 4
     `, params);
 
-    if (result.rowCount === 0) {
-      // Fallback: búsqueda por ILIKE si el full-text no encuentra nada
-      const fallback = await pool.query(`
-        SELECT modulo, flujo, titulo, contenido, keywords
-        FROM manual_edifai
-        WHERE activo = TRUE
-          ${modulo ? `AND modulo = '${modulo}'` : ''}
-          AND (
-            titulo    ILIKE $1 OR
-            contenido ILIKE $1 OR
-            keywords  ILIKE $1
-          )
-        ORDER BY orden ASC
-        LIMIT 3
-      `, [`%${consulta}%`]);
-
-      if (fallback.rowCount === 0)
-        return { encontrado: false, mensaje: 'No se encontró información sobre ese tema en el manual.' };
-
-      return { encontrado: true, secciones: fallback.rows };
-    }
+    if (result.rowCount === 0)
+      return { encontrado: false, mensaje: 'No se encontro informacion sobre ese tema en el manual.' };
 
     return { encontrado: true, secciones: result.rows };
   } catch (error) {
