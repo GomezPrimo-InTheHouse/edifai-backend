@@ -1,5 +1,521 @@
 
 
+// const pool = require('../../connection/db.js');
+// const { notificar } = require('../../helpers/notificar.js');
+// const { getFiltro, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPropietario.js');
+
+// // ── Helper: vincular trabajador + su equipo a una obra ────────
+// const vincularEquipoAObra = async (client, trabajador_id, obra_id, fecha_desde) => {
+//   await client.query(`
+//     INSERT INTO trabajadores_obras (trabajador_id, obra_id, fecha_desde)
+//     VALUES ($1, $2, $3)
+//     ON CONFLICT (trabajador_id, obra_id) DO NOTHING
+//   `, [trabajador_id, obra_id, fecha_desde]);
+
+//   const equipo = await client.query(`SELECT id FROM trabajadores WHERE jefe_id = $1`, [trabajador_id]);
+
+//   for (const subordinado of equipo.rows) {
+//     await client.query(`
+//       INSERT INTO trabajadores_obras (trabajador_id, obra_id, fecha_desde)
+//       VALUES ($1, $2, $3)
+//       ON CONFLICT (trabajador_id, obra_id) DO NOTHING
+//     `, [subordinado.id, obra_id, fecha_desde]);
+//   }
+// };
+
+// // ── Helper: desvincular trabajador + equipo si no tienen otras labores ──
+// const desvincularEquipoDeObraIfSinLabores = async (client, trabajador_id, obra_id, excluir_labor_id = null) => {
+//   const checkQuery = excluir_labor_id
+//     ? `SELECT id FROM labores WHERE trabajador_id = $1 AND obra_id = $2 AND id != $3 AND estado_id != 2 LIMIT 1`
+//     : `SELECT id FROM labores WHERE trabajador_id = $1 AND obra_id = $2 AND estado_id != 2 LIMIT 1`;
+
+//   const checkParams = excluir_labor_id
+//     ? [trabajador_id, obra_id, excluir_labor_id]
+//     : [trabajador_id, obra_id];
+
+//   const otrasLabores = await client.query(checkQuery, checkParams);
+
+//   if (otrasLabores.rows.length === 0) {
+//     await client.query(`DELETE FROM trabajadores_obras WHERE trabajador_id = $1 AND obra_id = $2`, [trabajador_id, obra_id]);
+//   }
+
+//   const equipo = await client.query(`SELECT id FROM trabajadores WHERE jefe_id = $1`, [trabajador_id]);
+
+//   for (const subordinado of equipo.rows) {
+//     const otrasSub = await client.query(
+//       excluir_labor_id
+//         ? `SELECT id FROM labores WHERE trabajador_id = $1 AND obra_id = $2 AND id != $3 AND estado_id != 2 LIMIT 1`
+//         : `SELECT id FROM labores WHERE trabajador_id = $1 AND obra_id = $2 AND estado_id != 2 LIMIT 1`,
+//       excluir_labor_id ? [subordinado.id, obra_id, excluir_labor_id] : [subordinado.id, obra_id]
+//     );
+
+//     if (otrasSub.rows.length === 0) {
+//       await client.query(`DELETE FROM trabajadores_obras WHERE trabajador_id = $1 AND obra_id = $2`, [subordinado.id, obra_id]);
+//     }
+//   }
+// };
+
+// const obtenerLabores = async (req, res) => {
+//   try {
+//     const { where, params } = getFiltro(req);
+
+//     const result = await pool.query(`
+//       SELECT 
+//         l.*,
+//         o.nombre AS obra_nombre,
+//         t.nombre AS trabajador_nombre,
+//         t.apellido AS trabajador_apellido,
+//         e.nombre AS especialidad_nombre
+//       FROM labores l
+//       LEFT JOIN obras o ON o.id = l.obra_id
+//       LEFT JOIN trabajadores t ON t.id = l.trabajador_id
+//       LEFT JOIN especialidades e ON e.id = l.especialidad_id
+//       WHERE l.archivado = FALSE
+//       AND (l.estado_id IS NULL OR l.estado_id != 2)
+//       AND (o.estado_id = 18 OR l.obra_id IS NULL)
+//       ${where.replace('AND propietario_id', 'AND l.propietario_id')}
+//       ORDER BY l.id
+//     `, params);
+
+//     res.status(200).json({ success: true, data: result.rows });
+//   } catch (error) {
+//     console.error('Error al obtener labores:', error);
+//     res.status(500).json({ error: 'Error al obtener las labores' });
+//   }
+// };
+
+// const obtenerLaboresArchivadas = async (req, res) => {
+//   try {
+//     const { where, params } = getFiltro(req);
+
+//     const result = await pool.query(`
+//       SELECT 
+//         l.*,
+//         o.nombre AS obra_nombre,
+//         t.nombre AS trabajador_nombre,
+//         t.apellido AS trabajador_apellido,
+//         e.nombre AS especialidad_nombre
+//       FROM labores l
+//       LEFT JOIN obras o ON o.id = l.obra_id
+//       LEFT JOIN trabajadores t ON t.id = l.trabajador_id
+//       LEFT JOIN especialidades e ON e.id = l.especialidad_id
+//       WHERE l.archivado = TRUE
+//       ${where.replace('AND propietario_id', 'AND l.propietario_id')}
+//       ORDER BY l.id
+//     `, params);
+
+//     res.status(200).json({ success: true, data: result.rows });
+//   } catch (error) {
+//     console.error('Error al obtener labores archivadas:', error);
+//     res.status(500).json({ error: 'Error al obtener las labores archivadas' });
+//   }
+// };
+
+// const obtenerMisLabores = async (req, res) => {
+//   try {
+//     const userId = req.user?.userId;
+
+//     if (!userId) return res.status(401).json({ success: false, error: 'No autorizado' });
+
+//     const trabajadorResult = await pool.query(
+//       `SELECT id FROM trabajadores WHERE usuario_id = $1`, [userId]
+//     );
+
+//     if (trabajadorResult.rowCount === 0) {
+//       return res.status(404).json({ success: false, message: 'No se encontró un trabajador asociado a tu usuario' });
+//     }
+
+//     const trabajadorId = trabajadorResult.rows[0].id;
+
+//     const result = await pool.query(`
+//       SELECT DISTINCT l.*
+//       FROM labores l
+//       LEFT JOIN obras o ON o.id = l.obra_id
+//       WHERE l.trabajador_id = $1
+//         AND l.archivado = FALSE
+//         AND (o.estado_id = 18 OR l.obra_id IS NULL)
+
+//       UNION
+
+//       SELECT DISTINCT l.*
+//       FROM labores l
+//       JOIN labores_trabajadores lt ON lt.labor_id = l.id
+//       LEFT JOIN obras o ON o.id = l.obra_id
+//       WHERE lt.trabajador_id = $1
+//         AND l.archivado = FALSE
+//         AND (o.estado_id = 18 OR l.obra_id IS NULL)
+
+//       ORDER BY id ASC
+//     `, [trabajadorId]);
+
+//     return res.status(200).json({ success: true, data: result.rows });
+//   } catch (error) {
+//     console.error('Error al obtener mis labores:', error);
+//     return res.status(500).json({ success: false, error: 'Error al obtener las labores' });
+//   }
+// };
+
+// // ── Obtener labor por ID ──────────────────────────────────────
+// const obtenerLaborPorId = async (req, res) => {
+//   const { id } = req.params;
+//   try {
+//     const result = await pool.query(`
+//       SELECT
+//         l.*,
+//         o.nombre                          AS obra_nombre,
+//         e.nombre                          AS estado_nombre,
+//         esp.nombre                        AS especialidad_nombre,
+//         t.nombre  || ' ' || t.apellido    AS trabajador_nombre,
+//         t.id                              AS trabajador_id,
+//         u.nombre                          AS usuario_creador_nombre
+//       FROM labores l
+//       LEFT JOIN obras         o   ON o.id   = l.obra_id
+//       LEFT JOIN estados       e   ON e.id   = l.estado_id
+//       LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
+//       LEFT JOIN trabajadores  t   ON t.id   = l.trabajador_id
+//       LEFT JOIN usuarios      u   ON u.id   = l.usuario_creador_id
+//       WHERE l.id = $1
+//     `, [id]);
+
+//     if (result.rowCount === 0)
+//       return res.status(404).json({ success: false, message: 'Labor no encontrada' });
+
+//     const labor = result.rows[0];
+//     if (req.user.rol_id === ROL_ADMIN_PRIVADO && labor.propietario_id !== req.user.userId)
+//       return res.status(403).json({ success: false, message: 'Sin permiso sobre esta labor' });
+
+//     return res.status(200).json({ success: true, data: labor });
+//   } catch (error) {
+//     console.error('Error al obtener labor:', error);
+//     return res.status(500).json({ success: false, error: 'Error al obtener la labor' });
+//   }
+// };
+
+// // ── Crear labor ───────────────────────────────────────────────
+
+// const crearLabor = async (req, res) => {
+//   Object.keys(req.body).forEach(key => {
+//     if (req.body[key] === '') req.body[key] = null;
+//   });
+
+//   const client = await pool.connect();
+//   try {
+//     const {
+//       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//       estado_id, trabajador_id, nombre, especialidad_id, modo = 'rapido',
+//       unidad_id, cantidad,
+//     } = req.body;
+
+//     const _trabajador_id = trabajador_id ?? null;
+//     const _especialidad_id = especialidad_id ?? null;
+//     const _estado_id = estado_id ?? null;
+
+//     if (modo === 'rapido' && !_trabajador_id)
+//       return res.status(400).json({ success: false, message: 'En modo rápido el trabajador es obligatorio' });
+
+//     const usuario_creador_id = req.user.userId;
+//     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
+//     const estadoFinal = modo === 'cotizacion' ? 29 : _estado_id;
+
+//     await client.query('BEGIN');
+
+//     const result = await client.query(`
+//       INSERT INTO labores (
+//         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//         estado_id, trabajador_id, nombre, especialidad_id,
+//         usuario_creador_id, propietario_id, modo, unidad_id, cantidad
+//       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+//       RETURNING *
+//     `, [
+//       obra_id, descripcion,
+//       fecha_inicio_estimada ?? null, fecha_fin_estimada ?? null,
+//       estadoFinal, _trabajador_id, nombre, _especialidad_id,
+//       usuario_creador_id, propietario_id, modo,
+//       unidad_id ?? null, cantidad ?? null,
+//     ]);
+
+//     const labor = result.rows[0];
+
+//     if (_trabajador_id) {
+//       await client.query(`
+//         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
+//         VALUES ($1, $2) ON CONFLICT DO NOTHING
+//       `, [labor.id, _trabajador_id]);
+
+//       const fechaDesde = fecha_inicio_estimada
+//         ? fecha_inicio_estimada.split('T')[0]
+//         : new Date().toISOString().split('T')[0];
+
+//       await vincularEquipoAObra(client, _trabajador_id, obra_id, fechaDesde);
+//     }
+
+//     await client.query('COMMIT');
+//     await notificar({ tipo: 'labor_creada', mensaje: `Nueva labor creada: "${nombre}"`, usuario_id: null });
+//     res.status(200).json({ success: true, data: labor });
+//   } catch (error) {
+//     await client.query('ROLLBACK');
+//     console.error('Error al crear labor:', error);
+//     res.status(500).json({ error: 'Error al crear la labor' });
+//   } finally {
+//     client.release();
+//   }
+// };
+
+// // const crearLabor = async (req, res) => {
+// //   const client = await pool.connect();
+// //   try {
+// //     const {
+// //       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+// //       estado_id, trabajador_id, nombre, especialidad_id,
+// //     } = req.body;
+
+// //     const usuario_creador_id = req.user.userId;
+// //     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
+
+// //     await client.query('BEGIN');
+
+// //     const result = await client.query(`
+// //       INSERT INTO labores (
+// //         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+// //         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id
+// //       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+// //       RETURNING *
+// //     `, [obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+// //         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id]);
+
+// //     const labor = result.rows[0];
+
+// //     if (trabajador_id) {
+// //       await client.query(`
+// //         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
+// //         VALUES ($1, $2) ON CONFLICT DO NOTHING
+// //       `, [labor.id, trabajador_id]);
+
+// //       const fechaDesde = fecha_inicio_estimada
+// //         ? fecha_inicio_estimada.split('T')[0]
+// //         : new Date().toISOString().split('T')[0];
+
+// //       await vincularEquipoAObra(client, trabajador_id, obra_id, fechaDesde);
+// //     }
+
+// //     await client.query('COMMIT');
+
+// //     await notificar({ tipo: 'labor_creada', mensaje: `Nueva labor creada: "${nombre}"`, usuario_id: null });
+
+// //     res.status(200).json({ success: true, data: labor });
+// //   } catch (error) {
+// //     await client.query('ROLLBACK');
+// //     console.error('Error al crear labor:', error);
+// //     res.status(500).json({ error: 'Error al crear la labor' });
+// //   } finally {
+// //     client.release();
+// //   }
+// // };
+
+// // ── Actualizar labor ──────────────────────────────────────────
+
+
+// const actualizarLabor = async (req, res) => {
+//   Object.keys(req.body).forEach(key => {
+//     if (req.body[key] === '') req.body[key] = null;
+//   });
+
+//   const { id } = req.params;
+//   const {
+//     obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
+//     estado_id, trabajador_id, nombre, especialidad_id,
+//     fecha_inicio_real, fecha_fin_real, unidad_id, cantidad,
+//   } = req.body;
+
+//   const client = await pool.connect();
+//   try {
+//     await client.query('BEGIN');
+
+//     const laborActual = await client.query(
+//       `SELECT trabajador_id, obra_id, propietario_id FROM labores WHERE id = $1`, [id]
+//     );
+
+//     if (laborActual.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(404).json({ success: false, message: 'Labor no encontrada' });
+//     }
+
+//     const labor = laborActual.rows[0];
+//     if (req.user.rol_id === ROL_ADMIN_PRIVADO && labor.propietario_id !== req.user.userId) {
+//       await client.query('ROLLBACK');
+//       return res.status(403).json({ success: false, message: 'Sin permiso sobre esta labor' });
+//     }
+
+//     const trabajadorAnterior = labor.trabajador_id;
+//     const obraAnterior = labor.obra_id;
+//     const usuario_creador_id = req.user.userId;
+
+//     const result = await client.query(`
+//       UPDATE labores SET
+//         obra_id=$1, descripcion=$2,
+//         fecha_inicio_estimada=$3, fecha_fin_estimada=$4,
+//         estado_id=$5, trabajador_id=$6, nombre=$7,
+//         especialidad_id=$8, usuario_creador_id=$9,
+//         fecha_inicio_real=$10, fecha_fin_real=$11,
+//         unidad_id=$12, cantidad=$13,
+//         updated_at=NOW()
+//       WHERE id=$14 RETURNING *
+//     `, [
+//       obra_id, descripcion,
+//       fecha_inicio_estimada || null, fecha_fin_estimada || null,
+//       estado_id || null, trabajador_id || null, nombre,
+//       especialidad_id || null, usuario_creador_id,
+//       fecha_inicio_real || null, fecha_fin_real || null,
+//       unidad_id || null, cantidad || null,
+//       id,
+//     ]);
+
+//     await client.query(`DELETE FROM labores_trabajadores WHERE labor_id = $1`, [id]);
+//     if (trabajador_id) {
+//       await client.query(`
+//         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
+//         VALUES ($1, $2) ON CONFLICT DO NOTHING
+//       `, [id, trabajador_id]);
+//     }
+
+//     const trabajadorCambio = Number(trabajador_id) !== Number(trabajadorAnterior);
+//     const obraCambio = Number(obra_id) !== Number(obraAnterior);
+
+//     if (trabajadorCambio || obraCambio) {
+//       if (trabajadorAnterior) {
+//         await desvincularEquipoDeObraIfSinLabores(client, trabajadorAnterior, obraAnterior, Number(id));
+//       }
+//       if (trabajador_id) {
+//         const fechaDesde = fecha_inicio_estimada
+//           ? fecha_inicio_estimada.split('T')[0]
+//           : new Date().toISOString().split('T')[0];
+//         await vincularEquipoAObra(client, trabajador_id, obra_id, fechaDesde);
+//       }
+//     }
+
+//     await client.query('COMMIT');
+//     await notificar({ tipo: 'labor_modificada', mensaje: `Labor #${id} fue modificada`, usuario_id: null });
+//     res.status(200).json({ success: true, data: result.rows[0] });
+//   } catch (error) {
+//     await client.query('ROLLBACK');
+//     console.error('Error al actualizar labor:', error);
+//     res.status(500).json({ success: false, message: 'Error interno del servidor' });
+//   } finally {
+//     client.release();
+//   }
+// };
+
+// // ── Dar de baja labor ─────────────────────────────────────────
+// const darDeBajaLabor = async (req, res) => {
+//   const { id } = req.params;
+//   const client = await pool.connect();
+
+//   try {
+//     await client.query('BEGIN');
+
+//     const labor = await client.query(`SELECT * FROM labores WHERE id = $1`, [id]);
+
+//     if (labor.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(404).json({ error: 'Labor no encontrada' });
+//     }
+
+//     const { trabajador_id, obra_id, propietario_id } = labor.rows[0];
+
+//     if (req.user.rol_id === ROL_ADMIN_PRIVADO && propietario_id !== req.user.userId) {
+//       await client.query('ROLLBACK');
+//       return res.status(403).json({ success: false, message: 'Sin permiso sobre esta labor' });
+//     }
+
+//     await client.query(`UPDATE labores SET estado_id = 2, updated_at = NOW() WHERE id = $1`, [id]);
+//     await client.query(`DELETE FROM labores_trabajadores WHERE labor_id = $1`, [id]);
+
+//     if (trabajador_id && obra_id) {
+//       await desvincularEquipoDeObraIfSinLabores(client, trabajador_id, obra_id, Number(id));
+//     }
+
+//     await client.query('COMMIT');
+//     await notificar({ tipo: 'labor_eliminada', mensaje: `Labor #${id} fue dada de baja`, usuario_id: null });
+
+//     res.status(200).json({ success: true, message: 'Labor dada de baja exitosamente' });
+//   } catch (error) {
+//     await client.query('ROLLBACK');
+//     console.error('Error al dar de baja labor:', error);
+//     res.status(500).json({ success: false, message: 'Error al dar de baja la labor' });
+//   } finally {
+//     client.release();
+//   }
+// };
+
+// // ── Cambiar estado labor ──────────────────────────────────────
+// const cambiarEstadoLabor = async (req, res) => {
+//   const { id } = req.params;
+//   const { estado_id } = req.body;
+
+//   try {
+//     const labor = await pool.query(`SELECT propietario_id FROM labores WHERE id = $1`, [id]);
+
+//     if (labor.rows.length === 0)
+//       return res.status(404).json({ success: false, message: 'Labor no encontrada' });
+
+//     if (req.user.rol_id === ROL_ADMIN_PRIVADO && labor.rows[0].propietario_id !== req.user.userId)
+//       return res.status(403).json({ success: false, message: 'Sin permiso sobre esta labor' });
+
+//     const result = await pool.query(`
+//       UPDATE labores SET estado_id = $1, updated_at = NOW()
+//       WHERE id = $2 RETURNING *
+//     `, [estado_id, id]);
+
+//     await notificar({ tipo: 'labor_estado', mensaje: `Labor #${id} cambió de estado`, usuario_id: null });
+//     res.status(200).json({ success: true, data: result.rows[0] });
+//   } catch (error) {
+//     console.error('Error al cambiar estado:', error);
+//     res.status(500).json({ success: false, message: 'Error interno del servidor' });
+//   }
+// };
+
+// // ── Obtener labores por obra ───────────────────────────────────
+// const obtenerLaboresPorObra = async (req, res) => {
+//   const { obra_id } = req.params;
+//   try {
+//     const { where, params } = getFiltro(req);
+
+// const result = await pool.query(`
+//   SELECT
+//     l.*,
+//     e.nombre                       AS estado_nombre,
+//     esp.nombre                     AS especialidad_nombre,
+//     t.nombre || ' ' || t.apellido  AS trabajador_nombre
+//   FROM labores l
+//   LEFT JOIN estados        e   ON e.id   = l.estado_id
+//   LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
+//   LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
+//   WHERE l.obra_id = $${params.length + 1}
+//   AND l.archivado = FALSE
+//   AND (l.estado_id IS NULL OR l.estado_id != 2)
+//   ${where.replace('AND propietario_id', 'AND l.propietario_id')}
+//   ORDER BY l.id ASC
+// `, [...params, obra_id]);
+
+//     return res.status(200).json({ success: true, data: result.rows });
+//   } catch (error) {
+//     console.error('Error al obtener labores por obra:', error);
+//     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+//   }
+// };
+
+// module.exports = {
+//   obtenerLabores,
+//   obtenerMisLabores,
+//   obtenerLaborPorId,
+//   crearLabor,
+//   actualizarLabor,
+//   darDeBajaLabor,
+//   cambiarEstadoLabor,
+//   obtenerLaboresPorObra,
+//   obtenerLaboresArchivadas,
+// };
+
 const pool = require('../../connection/db.js');
 const { notificar } = require('../../helpers/notificar.js');
 const { getFiltro, ROL_ADMIN_PRIVADO } = require('../../middlewares/filtrarPorPropietario.js');
@@ -55,6 +571,7 @@ const desvincularEquipoDeObraIfSinLabores = async (client, trabajador_id, obra_i
   }
 };
 
+// ── Obtener todas las labores ─────────────────────────────────
 const obtenerLabores = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
@@ -84,6 +601,7 @@ const obtenerLabores = async (req, res) => {
   }
 };
 
+// ── Obtener labores archivadas ────────────────────────────────
 const obtenerLaboresArchivadas = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
@@ -111,6 +629,7 @@ const obtenerLaboresArchivadas = async (req, res) => {
   }
 };
 
+// ── Obtener mis labores (trabajador logueado) ─────────────────
 const obtenerMisLabores = async (req, res) => {
   try {
     const userId = req.user?.userId;
@@ -192,7 +711,6 @@ const obtenerLaborPorId = async (req, res) => {
 };
 
 // ── Crear labor ───────────────────────────────────────────────
-
 const crearLabor = async (req, res) => {
   Object.keys(req.body).forEach(key => {
     if (req.body[key] === '') req.body[key] = null;
@@ -203,12 +721,13 @@ const crearLabor = async (req, res) => {
     const {
       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
       estado_id, trabajador_id, nombre, especialidad_id, modo = 'rapido',
-      unidad_id, cantidad,
+      unidad_id, cantidad, costo_estimado,
     } = req.body;
 
     const _trabajador_id = trabajador_id ?? null;
     const _especialidad_id = especialidad_id ?? null;
     const _estado_id = estado_id ?? null;
+    const _costo_estimado = costo_estimado ? Number(costo_estimado) : null;
 
     if (modo === 'rapido' && !_trabajador_id)
       return res.status(400).json({ success: false, message: 'En modo rápido el trabajador es obligatorio' });
@@ -223,8 +742,9 @@ const crearLabor = async (req, res) => {
       INSERT INTO labores (
         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
         estado_id, trabajador_id, nombre, especialidad_id,
-        usuario_creador_id, propietario_id, modo, unidad_id, cantidad
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        usuario_creador_id, propietario_id, modo, unidad_id, cantidad,
+        costo_estimado
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [
       obra_id, descripcion,
@@ -232,6 +752,7 @@ const crearLabor = async (req, res) => {
       estadoFinal, _trabajador_id, nombre, _especialidad_id,
       usuario_creador_id, propietario_id, modo,
       unidad_id ?? null, cantidad ?? null,
+      _costo_estimado,
     ]);
 
     const labor = result.rows[0];
@@ -261,60 +782,7 @@ const crearLabor = async (req, res) => {
   }
 };
 
-// const crearLabor = async (req, res) => {
-//   const client = await pool.connect();
-//   try {
-//     const {
-//       obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-//       estado_id, trabajador_id, nombre, especialidad_id,
-//     } = req.body;
-
-//     const usuario_creador_id = req.user.userId;
-//     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
-
-//     await client.query('BEGIN');
-
-//     const result = await client.query(`
-//       INSERT INTO labores (
-//         obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-//         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id
-//       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-//       RETURNING *
-//     `, [obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
-//         estado_id, trabajador_id, nombre, especialidad_id, usuario_creador_id, propietario_id]);
-
-//     const labor = result.rows[0];
-
-//     if (trabajador_id) {
-//       await client.query(`
-//         INSERT INTO labores_trabajadores (labor_id, trabajador_id)
-//         VALUES ($1, $2) ON CONFLICT DO NOTHING
-//       `, [labor.id, trabajador_id]);
-
-//       const fechaDesde = fecha_inicio_estimada
-//         ? fecha_inicio_estimada.split('T')[0]
-//         : new Date().toISOString().split('T')[0];
-
-//       await vincularEquipoAObra(client, trabajador_id, obra_id, fechaDesde);
-//     }
-
-//     await client.query('COMMIT');
-
-//     await notificar({ tipo: 'labor_creada', mensaje: `Nueva labor creada: "${nombre}"`, usuario_id: null });
-
-//     res.status(200).json({ success: true, data: labor });
-//   } catch (error) {
-//     await client.query('ROLLBACK');
-//     console.error('Error al crear labor:', error);
-//     res.status(500).json({ error: 'Error al crear la labor' });
-//   } finally {
-//     client.release();
-//   }
-// };
-
 // ── Actualizar labor ──────────────────────────────────────────
-
-
 const actualizarLabor = async (req, res) => {
   Object.keys(req.body).forEach(key => {
     if (req.body[key] === '') req.body[key] = null;
@@ -325,6 +793,7 @@ const actualizarLabor = async (req, res) => {
     obra_id, descripcion, fecha_inicio_estimada, fecha_fin_estimada,
     estado_id, trabajador_id, nombre, especialidad_id,
     fecha_inicio_real, fecha_fin_real, unidad_id, cantidad,
+    costo_estimado,
   } = req.body;
 
   const client = await pool.connect();
@@ -358,8 +827,9 @@ const actualizarLabor = async (req, res) => {
         especialidad_id=$8, usuario_creador_id=$9,
         fecha_inicio_real=$10, fecha_fin_real=$11,
         unidad_id=$12, cantidad=$13,
+        costo_estimado=$14,
         updated_at=NOW()
-      WHERE id=$14 RETURNING *
+      WHERE id=$15 RETURNING *
     `, [
       obra_id, descripcion,
       fecha_inicio_estimada || null, fecha_fin_estimada || null,
@@ -367,6 +837,7 @@ const actualizarLabor = async (req, res) => {
       especialidad_id || null, usuario_creador_id,
       fecha_inicio_real || null, fecha_fin_real || null,
       unidad_id || null, cantidad || null,
+      costo_estimado ? Number(costo_estimado) : null,
       id,
     ]);
 
@@ -480,22 +951,22 @@ const obtenerLaboresPorObra = async (req, res) => {
   try {
     const { where, params } = getFiltro(req);
 
-const result = await pool.query(`
-  SELECT
-    l.*,
-    e.nombre                       AS estado_nombre,
-    esp.nombre                     AS especialidad_nombre,
-    t.nombre || ' ' || t.apellido  AS trabajador_nombre
-  FROM labores l
-  LEFT JOIN estados        e   ON e.id   = l.estado_id
-  LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
-  LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
-  WHERE l.obra_id = $${params.length + 1}
-  AND l.archivado = FALSE
-  AND (l.estado_id IS NULL OR l.estado_id != 2)
-  ${where.replace('AND propietario_id', 'AND l.propietario_id')}
-  ORDER BY l.id ASC
-`, [...params, obra_id]);
+    const result = await pool.query(`
+      SELECT
+        l.*,
+        e.nombre                       AS estado_nombre,
+        esp.nombre                     AS especialidad_nombre,
+        t.nombre || ' ' || t.apellido  AS trabajador_nombre
+      FROM labores l
+      LEFT JOIN estados        e   ON e.id   = l.estado_id
+      LEFT JOIN especialidades esp ON esp.id = l.especialidad_id
+      LEFT JOIN trabajadores   t   ON t.id   = l.trabajador_id
+      WHERE l.obra_id = $${params.length + 1}
+      AND l.archivado = FALSE
+      AND (l.estado_id IS NULL OR l.estado_id != 2)
+      ${where.replace('AND propietario_id', 'AND l.propietario_id')}
+      ORDER BY l.id ASC
+    `, [...params, obra_id]);
 
     return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
