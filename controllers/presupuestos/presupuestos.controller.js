@@ -410,8 +410,117 @@ const getPresupuestoContextoPago = async (req, res) => {
   }
 };
 
+const ROLES_ADMIN = [1, 3, 4, 6];
+
+// ── Anular presupuesto ────────────────────────────────────────
+const anularPresupuesto = async (req, res) => {
+  const { id } = req.params;
+  const { motivo } = req.body;
+
+  if (!ROLES_ADMIN.includes(req.user.rol_id))
+    return res.status(403).json({ success: false, message: 'No tenés permisos para anular presupuestos' });
+
+  if (!motivo || !motivo.trim())
+    return res.status(400).json({ success: false, message: 'El motivo de anulación es obligatorio' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const presResult = await client.query(`SELECT * FROM presupuestos WHERE id = $1`, [id]);
+    if (presResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Presupuesto no encontrado' });
+    }
+
+    const presupuesto = presResult.rows[0];
+
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && presupuesto.propietario_id !== req.user.userId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre este presupuesto' });
+    }
+
+    if (presupuesto.estado_confirmacion === 'anulado') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Este presupuesto ya fue anulado' });
+    }
+
+    // Guardar snapshot antes de modificar
+    const datosAnteriores = { ...presupuesto };
+
+    // Marcar presupuesto como anulado
+    await client.query(`
+      UPDATE presupuestos SET
+        estado_confirmacion = 'anulado',
+        anulado_por = $1,
+        anulado_at = NOW(),
+        motivo_anulacion = $2,
+        updated_at = NOW()
+      WHERE id = $3
+    `, [req.user.userId, motivo.trim(), id]);
+
+    // Revertir efectos sobre la labor, si tiene labor asociada
+    if (presupuesto.labor_id) {
+      const laborResult = await client.query(
+        `SELECT id, trabajador_id, modo FROM labores WHERE id = $1`, [presupuesto.labor_id]
+      );
+      const labor = laborResult.rows[0];
+
+      if (labor) {
+        if (labor.modo === 'cotizacion') {
+          // Desvincular trabajador, volver labor a "Sin asignar" (29)
+          await client.query(`
+            UPDATE labores SET trabajador_id = NULL, estado_id = 29, updated_at = NOW()
+            WHERE id = $1
+          `, [labor.id]);
+
+          await client.query(`DELETE FROM labores_trabajadores WHERE labor_id = $1`, [labor.id]);
+
+          // Volver el labor_presupuesto original (seleccionado) a pendiente
+          await client.query(`
+            UPDATE labor_presupuestos SET estado = 'pendiente'
+            WHERE labor_id = $1 AND estado = 'seleccionado'
+          `, [labor.id]);
+        } else {
+          // Modo rápido: desvincular trabajador también
+          await client.query(`
+            UPDATE labores SET trabajador_id = NULL, updated_at = NOW()
+            WHERE id = $1
+          `, [labor.id]);
+
+          await client.query(`DELETE FROM labores_trabajadores WHERE labor_id = $1`, [labor.id]);
+        }
+      }
+    }
+
+    // Log de auditoría
+    await client.query(`
+      INSERT INTO auditoria_presupuestos
+        (presupuesto_id, accion, usuario_id, motivo, datos_anteriores)
+      VALUES ($1, 'anulado', $2, $3, $4)
+    `, [id, req.user.userId, motivo.trim(), JSON.stringify(datosAnteriores)]);
+
+    await client.query('COMMIT');
+
+    await notificar({
+      tipo: 'presupuesto_anulado',
+      mensaje: `Presupuesto #${id} fue anulado: ${motivo.trim()}`,
+      usuario_id: null,
+    });
+
+    res.status(200).json({ success: true, message: 'Presupuesto anulado correctamente' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al anular presupuesto:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getAllPresupuestos, getPresupuestoById, createPresupuesto,
   updatePresupuesto, deletePresupuesto, cambiarEstadoPresupuesto,
   getPresupuestoContextoPago, getPresupuestosArchivados,
+  anularPresupuesto,
 };
