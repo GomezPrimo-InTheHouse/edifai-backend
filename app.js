@@ -67,7 +67,7 @@ app.use('/proveedores-externos', require('./routes/labores/proveedor-externo.rou
 
 app.use('/asistente', asistenteRoutes);
 app.use('/market', marketRoutes);
-
+app.use('/sectores', require('./routes/sectores/sectores.routes.js'));
 
 app.use('/resumen', require('./routes/resumen/resumen.routes.js'));
 
