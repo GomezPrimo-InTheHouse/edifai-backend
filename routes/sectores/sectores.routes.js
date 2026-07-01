@@ -7,7 +7,7 @@ const {
   crearSectoresBulk,
   actualizarSector,
   eliminarSector,
-} = require('./sectores.controller.js');
+} = require('../../controllers/sectores/sectores.controller.js');
 
 router.get('/byObra/:obra_id',            verificarToken, obtenerSectoresPorObra);
 router.get('/byObra/:obra_id/stats',      verificarToken, obtenerSectoresConStats);
