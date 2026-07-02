@@ -24,111 +24,7 @@ const calcularEstadoIdPorPorcentaje = (porcentaje, estadoIdActual) => {
   return Math.max(nuevoEstadoId, estadoIdActual);
 };
 
-// ─────────────────────────────────────────────────────────────
-// POST /avances/crear
-// ─────────────────────────────────────────────────────────────
-const crearAvance = async (req, res) => {
-  if (!ROLES_WORKER.includes(req.user.rol_id)) {
-    return res.status(403).json({
-      success: false,
-      message: 'No tenés permisos para registrar avances'
-    });
-  }
 
-  const { obra_id, labor_id, descripcion, audio_url, imagen_url, porcentaje_cambio } = req.body;
-
-  if (!obra_id || !labor_id) {
-    return res.status(400).json({ success: false, message: 'obra_id y labor_id son requeridos' });
-  }
-  if (!descripcion && !audio_url && !imagen_url) {
-    return res.status(400).json({
-      success: false,
-      message: 'El avance debe incluir al menos una descripción, audio o imagen'
-    });
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const trabajadorResult = await client.query(
-      `SELECT id, nombre, apellido FROM trabajadores WHERE usuario_id = $1`,
-      [req.user.userId]
-    );
-    if (trabajadorResult.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        message: 'No se encontró un trabajador asociado a tu usuario'
-      });
-    }
-
-    const trabajador    = trabajadorResult.rows[0];
-    const trabajador_id = trabajador.id;
-
-    const laborResult = await client.query(
-      `SELECT id, nombre, estado_id FROM labores WHERE id = $1 AND obra_id = $2`,
-      [labor_id, obra_id]
-    );
-    if (laborResult.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        message: 'La labor no existe o no pertenece a la obra indicada'
-      });
-    }
-
-    const labor = laborResult.rows[0];
-
-    if (labor.estado_id === ESTADO_LABOR.FINALIZADA) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        message: 'No se pueden registrar avances en una labor finalizada'
-      });
-    }
-
-    const insertResult = await client.query(
-      `INSERT INTO avances_obra
-         (obra_id, labor_id, trabajador_id, descripcion, audio_url, imagen_url,
-          porcentaje_cambio, estado, fecha_registro, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendiente', NOW(), NOW(), NOW())
-       RETURNING *`,
-      [obra_id, labor_id, trabajador_id, descripcion, audio_url, imagen_url, porcentaje_cambio ?? null]
-    );
-
-    if (labor.estado_id === ESTADO_LABOR.PLANIFICADA) {
-      await client.query(
-        `UPDATE labores SET estado_id = $1, updated_at = NOW() WHERE id = $2`,
-        [ESTADO_LABOR.EN_PROCESO, labor_id]
-      );
-    }
-
-    await client.query('COMMIT');
-
-    // Notificar a admins
-    await notificar({
-      tipo:       'avance_creado',
-      mensaje:    `${trabajador.nombre} ${trabajador.apellido} registró un avance en la labor "${labor.nombre}"`,
-      usuario_id: null,
-    });
-
-    // Disparar análisis de visión IA en background si hay imagen
-    if (imagen_url) {
-      const avanceId = insertResult.rows[0].id;
-      setImmediate(() => analyzeAvanceImage(avanceId, imagen_url, labor_id));
-    }
-
-    return res.status(201).json({ success: true, data: insertResult.rows[0] });
-
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error al crear avance:', error);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  } finally {
-    client.release();
-  }
-};
 
 // ─────────────────────────────────────────────────────────────
 // PUT /avances/:id/aprobar
@@ -325,83 +221,6 @@ const rechazarAvance = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// GET /avances/getByObra
-// ─────────────────────────────────────────────────────────────
-const getAvancesByObra = async (req, res) => {
-  const { obra_id, labor_id, estado, page = 1, limit = 20 } = req.query;
-
-  if (!obra_id) {
-    return res.status(400).json({ success: false, message: 'obra_id es requerido' });
-  }
-
-  const pageNum  = Math.max(1, parseInt(page)  || 1);
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
-  const offset   = (pageNum - 1) * limitNum;
-
-  const params  = [obra_id];
-  const filters = ['ao.obra_id = $1'];
-
-  if (labor_id) {
-    params.push(labor_id);
-    filters.push(`ao.labor_id = $${params.length}`);
-  }
-  if (estado && ['pendiente', 'aprobado', 'rechazado'].includes(estado)) {
-    params.push(estado);
-    filters.push(`ao.estado = $${params.length}`);
-  }
-
-  const whereClause = filters.join(' AND ');
-
-  try {
-    const countResult = await pool.query(
-      `SELECT COUNT(*) FROM avances_obra ao WHERE ${whereClause}`,
-      params
-    );
-    const total = parseInt(countResult.rows[0].count);
-
-    const dataParams = [...params, limitNum, offset];
-    const result = await pool.query(
-      `SELECT
-         ao.id, ao.obra_id, ao.labor_id,
-         l.nombre                       AS labor_nombre,
-         ao.trabajador_id,
-         t.nombre || ' ' || t.apellido  AS trabajador_nombre,
-         ao.descripcion,
-         ao.fecha_registro,
-         ao.audio_url,
-         ao.imagen_url,
-         ao.estado,
-         ao.aprobado_por,
-         u.nombre                       AS admin_nombre,
-         ao.fecha_aprobacion,
-         ao.observacion_admin,
-         ao.porcentaje_cambio,
-         ao.resultado_vision,
-         ao.cambio_detectado,
-         ao.imagen_comparada_con_id,
-         ao.created_at
-       FROM avances_obra ao
-       LEFT JOIN labores      l ON l.id = ao.labor_id
-       LEFT JOIN trabajadores t ON t.id = ao.trabajador_id
-       LEFT JOIN usuarios     u ON u.id = ao.aprobado_por
-       WHERE ${whereClause}
-       ORDER BY ao.fecha_registro DESC
-       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
-    );
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows,
-      pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
-    });
-
-  } catch (error) {
-    console.error('Error al obtener avances:', error);
-    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
-  }
-};
 
 // ─────────────────────────────────────────────────────────────
 // PUT /avances/:id/vision  — uso exclusivo del worker de IA
@@ -478,10 +297,277 @@ const guardarResultadoVision = async (req, res) => {
   }
 };
 
+const crearAvance = async (req, res) => {
+  if (!ROLES_WORKER.includes(req.user.rol_id)) {
+    return res.status(403).json({ success: false, message: 'No tenés permisos para registrar avances' });
+  }
+
+  const { obra_id, labor_id, descripcion, audio_url, imagen_url, porcentaje_cambio, sector_id } = req.body;
+
+  if (!obra_id || !labor_id) {
+    return res.status(400).json({ success: false, message: 'obra_id y labor_id son requeridos' });
+  }
+  if (!descripcion && !audio_url && !imagen_url) {
+    return res.status(400).json({
+      success: false,
+      message: 'El avance debe incluir al menos una descripción, audio o imagen'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const trabajadorResult = await client.query(
+      `SELECT id, nombre, apellido FROM trabajadores WHERE usuario_id = $1`,
+      [req.user.userId]
+    );
+    if (trabajadorResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'No se encontró un trabajador asociado a tu usuario' });
+    }
+
+    const trabajador    = trabajadorResult.rows[0];
+    const trabajador_id = trabajador.id;
+
+    const laborResult = await client.query(
+      `SELECT id, nombre, estado_id FROM labores WHERE id = $1 AND obra_id = $2`,
+      [labor_id, obra_id]
+    );
+    if (laborResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'La labor no existe o no pertenece a la obra indicada' });
+    }
+
+    const labor = laborResult.rows[0];
+
+    if (labor.estado_id === ESTADO_LABOR.FINALIZADA) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'No se pueden registrar avances en una labor finalizada' });
+    }
+
+    if (sector_id) {
+      const sectorCheck = await client.query(
+        `SELECT id FROM sectores WHERE id = $1 AND obra_id = $2 AND activo = TRUE`,
+        [sector_id, obra_id]
+      );
+      if (sectorCheck.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'El sector no pertenece a la obra' });
+      }
+    }
+
+    const insertResult = await client.query(
+      `INSERT INTO avances_obra
+         (obra_id, labor_id, trabajador_id, sector_id, descripcion, audio_url, imagen_url,
+          porcentaje_cambio, estado, fecha_registro, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW(), NOW(), NOW())
+       RETURNING *`,
+      [obra_id, labor_id, trabajador_id, sector_id ?? null, descripcion, audio_url, imagen_url, porcentaje_cambio ?? null]
+    );
+
+    if (labor.estado_id === ESTADO_LABOR.PLANIFICADA) {
+      await client.query(
+        `UPDATE labores SET estado_id = $1, updated_at = NOW() WHERE id = $2`,
+        [ESTADO_LABOR.EN_PROCESO, labor_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    await notificar({
+      tipo:       'avance_creado',
+      mensaje:    `${trabajador.nombre} ${trabajador.apellido} registró un avance en la labor "${labor.nombre}"`,
+      usuario_id: null,
+    });
+
+    if (imagen_url) {
+      const avanceId = insertResult.rows[0].id;
+      setImmediate(() => analyzeAvanceImage(avanceId, imagen_url, labor_id));
+    }
+
+    return res.status(201).json({ success: true, data: insertResult.rows[0] });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al crear avance:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+};
+
+const getAvancesByObra = async (req, res) => {
+  const { obra_id, labor_id, estado, page = 1, limit = 20 } = req.query;
+
+  if (!obra_id) {
+    return res.status(400).json({ success: false, message: 'obra_id es requerido' });
+  }
+
+  const pageNum  = Math.max(1, parseInt(page)  || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+  const offset   = (pageNum - 1) * limitNum;
+
+  const params  = [obra_id];
+  const filters = ['ao.obra_id = $1'];
+
+  if (labor_id) {
+    params.push(labor_id);
+    filters.push(`ao.labor_id = $${params.length}`);
+  }
+  if (estado && ['pendiente', 'aprobado', 'rechazado'].includes(estado)) {
+    params.push(estado);
+    filters.push(`ao.estado = $${params.length}`);
+  }
+
+  const whereClause = filters.join(' AND ');
+
+  try {
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM avances_obra ao WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const dataParams = [...params, limitNum, offset];
+    const result = await pool.query(
+      `SELECT
+         ao.id, ao.obra_id, ao.labor_id,
+         l.nombre                       AS labor_nombre,
+         ao.trabajador_id,
+         t.nombre || ' ' || t.apellido  AS trabajador_nombre,
+         ao.sector_id,
+         s.tipo                         AS sector_tipo,
+         s.valor                        AS sector_valor,
+         ao.descripcion,
+         ao.fecha_registro,
+         ao.audio_url,
+         ao.imagen_url,
+         ao.estado,
+         ao.aprobado_por,
+         u.nombre                       AS admin_nombre,
+         ao.fecha_aprobacion,
+         ao.observacion_admin,
+         ao.porcentaje_cambio,
+         ao.resultado_vision,
+         ao.cambio_detectado,
+         ao.imagen_comparada_con_id,
+         ao.created_at
+       FROM avances_obra ao
+       LEFT JOIN labores      l ON l.id = ao.labor_id
+       LEFT JOIN trabajadores t ON t.id = ao.trabajador_id
+       LEFT JOIN usuarios     u ON u.id = ao.aprobado_por
+       LEFT JOIN sectores     s ON s.id = ao.sector_id
+       WHERE ${whereClause}
+       ORDER BY ao.fecha_registro DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.rows,
+      pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
+
+  } catch (error) {
+    console.error('Error al obtener avances:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET /avances/getBySector/:sector_id
+// ─────────────────────────────────────────────────────────────
+const getAvancesBySector = async (req, res) => {
+  const { sector_id } = req.params;
+  const { estado, page = 1, limit = 20 } = req.query;
+
+  const pageNum  = Math.max(1, parseInt(page)  || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+  const offset   = (pageNum - 1) * limitNum;
+
+  const params  = [sector_id];
+  const filters = [];
+
+  if (estado && ['pendiente', 'aprobado', 'rechazado'].includes(estado)) {
+    params.push(estado);
+    filters.push(`ao.estado = $${params.length}`);
+  }
+  const whereExtra = filters.length ? `AND ${filters.join(' AND ')}` : '';
+
+  const baseCTE = `
+    WITH RECURSIVE sector_descendants AS (
+      SELECT id FROM sectores WHERE id = $1
+      UNION ALL
+      SELECT s.id FROM sectores s
+      JOIN sector_descendants sd ON s.parent_id = sd.id
+    )
+  `;
+
+  try {
+    const countResult = await pool.query(
+      `${baseCTE}
+       SELECT COUNT(*) FROM avances_obra ao
+       WHERE ao.sector_id IN (SELECT id FROM sector_descendants) ${whereExtra}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const dataParams = [...params, limitNum, offset];
+    const result = await pool.query(
+      `${baseCTE}
+       SELECT
+         ao.id, ao.obra_id, ao.labor_id,
+         l.nombre                       AS labor_nombre,
+         ao.trabajador_id,
+         t.nombre || ' ' || t.apellido  AS trabajador_nombre,
+         ao.sector_id,
+         s.tipo                         AS sector_tipo,
+         s.valor                        AS sector_valor,
+         ao.descripcion,
+         ao.fecha_registro,
+         ao.audio_url,
+         ao.imagen_url,
+         ao.estado,
+         ao.aprobado_por,
+         u.nombre                       AS admin_nombre,
+         ao.fecha_aprobacion,
+         ao.observacion_admin,
+         ao.porcentaje_cambio,
+         ao.resultado_vision,
+         ao.cambio_detectado,
+         ao.imagen_comparada_con_id,
+         ao.created_at
+       FROM avances_obra ao
+       LEFT JOIN labores      l ON l.id = ao.labor_id
+       LEFT JOIN trabajadores t ON t.id = ao.trabajador_id
+       LEFT JOIN usuarios     u ON u.id = ao.aprobado_por
+       LEFT JOIN sectores     s ON s.id = ao.sector_id
+       WHERE ao.sector_id IN (SELECT id FROM sector_descendants) ${whereExtra}
+       ORDER BY ao.fecha_registro DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.rows,
+      pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
+
+  } catch (error) {
+    console.error('Error al obtener avances por sector:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   crearAvance,
   aprobarAvance,
   rechazarAvance,
   getAvancesByObra,
+  getAvancesBySector,
   guardarResultadoVision,
 };
+

@@ -35,6 +35,7 @@ const {
   aprobarAvance,
   rechazarAvance,
   getAvancesByObra,
+  getAvancesBySector,
   guardarResultadoVision,
 } = require('../../controllers/obra/avance.controller.js');
 
@@ -66,6 +67,7 @@ router.post('/crearAvance',            verificarToken, crearAvance);
 router.put('/:id/aprobar',       verificarToken, aprobarAvance);
 router.put('/:id/rechazar',      verificarToken, rechazarAvance);
 router.get('/getByObra',         verificarToken, getAvancesByObra);
+router.get('/getBySector/:sector_id', verificarToken, getAvancesBySector);
  
 // Ruta de uso interno — proteger con API key de microservicio cuando se implemente la IA
 // Por ahora queda disponible para pruebas, igual que el resto del sistema
