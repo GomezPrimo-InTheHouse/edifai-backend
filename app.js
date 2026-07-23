@@ -71,6 +71,7 @@ app.use('/sectores', require('./routes/sectores/sectores.routes.js'));
 
 app.use('/resumen', require('./routes/resumen/resumen.routes.js'));
 
+app.use('/compras',        require('./routes/compras/compras.routes.js'));
 // Health check - sirve para render y para uptime bot
 app.get('/health', (_req, res) => res.json({
   status:    'ok',
