@@ -231,6 +231,7 @@ const actualizarCompra = async (req, res) => {
     const {
       obra_id, sector_id, especialidad_id, descripcion,
       proveedor, monto, fecha, comprobante_url,
+      material_id, cantidad,
     } = req.body;
 
     const resCompra = await pool.query(
@@ -250,6 +251,7 @@ const actualizarCompra = async (req, res) => {
     if (!descripcion)     faltantes.push('descripcion');
     if (!monto)           faltantes.push('monto');
     if (!fecha)           faltantes.push('fecha');
+    if (material_id && !cantidad) faltantes.push('cantidad');
     if (faltantes.length > 0)
       return res.status(400).json({ success: false, message: 'Faltan campos obligatorios', faltantes });
 
@@ -273,7 +275,48 @@ const actualizarCompra = async (req, res) => {
         return res.status(404).json({ success: false, message: 'El sector especificado no existe en esta obra' });
     }
 
+    if (material_id && cantidad <= 0)
+      return res.status(400).json({ success: false, message: 'La cantidad debe ser mayor a 0' });
+
     await client.query('BEGIN');
+
+    // ── Revertir efecto del material/cantidad ANTERIOR (si existía) ──
+    if (compraActual.material_id && compraActual.cantidad) {
+      await client.query(
+        `UPDATE materiales SET stock_actual = GREATEST(stock_actual - $1, 0), updated_at = NOW() WHERE id = $2`,
+        [compraActual.cantidad, compraActual.material_id]
+      );
+    }
+
+    // ── Aplicar efecto del material/cantidad NUEVO (si corresponde) ──
+    if (material_id) {
+      const resMat = await client.query('SELECT id, stock_actual, precio_unitario FROM materiales WHERE id = $1', [material_id]);
+      if (resMat.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'El material especificado no existe' });
+      }
+
+      const material = resMat.rows[0];
+      const precioAnteriorMaterial = parseFloat(material.precio_unitario);
+      const precioNuevo = +(monto / cantidad).toFixed(2);
+      const nuevoStock = parseFloat(material.stock_actual) + parseFloat(cantidad);
+
+      await client.query(
+        `UPDATE materiales SET stock_actual = $1, precio_unitario = $2, updated_at = NOW() WHERE id = $3`,
+        [nuevoStock, precioNuevo, material_id]
+      );
+
+      await client.query(
+        `INSERT INTO historial_incremento_material (material_id, precio_anterior, precio_nuevo, porcentaje_aplicado, motivo, usuario_id)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          material_id, precioAnteriorMaterial, precioNuevo,
+          precioAnteriorMaterial > 0 ? +(((precioNuevo - precioAnteriorMaterial) / precioAnteriorMaterial) * 100).toFixed(2) : null,
+          `Edición de compra #${id}`,
+          req.user.userId,
+        ]
+      );
+    }
 
     const result = await client.query(
       `UPDATE compras SET
@@ -285,39 +328,17 @@ const actualizarCompra = async (req, res) => {
         monto           = $6,
         fecha           = $7,
         comprobante_url = $8,
+        material_id     = $9,
+        cantidad        = $10,
         updated_at      = NOW()
-      WHERE id = $9
+      WHERE id = $11
       RETURNING *`,
       [
         obra_id, sector_id ?? null, especialidad_id, descripcion,
-        proveedor ?? null, monto, fecha, comprobante_url ?? null, id,
+        proveedor ?? null, monto, fecha, comprobante_url ?? null,
+        material_id ?? null, cantidad ?? null, id,
       ]
     );
-
-    // Si la compra está vinculada a un material, recalcular su precio unitario
-    if (compraActual.material_id && compraActual.cantidad) {
-      const resMat = await client.query('SELECT id, precio_unitario FROM materiales WHERE id = $1', [compraActual.material_id]);
-      if (resMat.rows.length > 0) {
-        const precioAnterior = parseFloat(resMat.rows[0].precio_unitario);
-        const precioNuevo = +(monto / compraActual.cantidad).toFixed(2);
-
-        await client.query(
-          `UPDATE materiales SET precio_unitario = $1, updated_at = NOW() WHERE id = $2`,
-          [precioNuevo, compraActual.material_id]
-        );
-
-        await client.query(
-          `INSERT INTO historial_incremento_material (material_id, precio_anterior, precio_nuevo, porcentaje_aplicado, motivo, usuario_id)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
-          [
-            compraActual.material_id, precioAnterior, precioNuevo,
-            precioAnterior > 0 ? +(((precioNuevo - precioAnterior) / precioAnterior) * 100).toFixed(2) : null,
-            `Edición de compra #${id}`,
-            req.user.userId,
-          ]
-        );
-      }
-    }
 
     await client.query('COMMIT');
 
