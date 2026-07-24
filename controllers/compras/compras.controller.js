@@ -225,6 +225,7 @@ const obtenerCompraPorId = async (req, res) => {
 };
 
 const actualizarCompra = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -232,7 +233,10 @@ const actualizarCompra = async (req, res) => {
       proveedor, monto, fecha, comprobante_url,
     } = req.body;
 
-    const resCompra = await pool.query('SELECT id, obra_id, propietario_id FROM compras WHERE id = $1 AND activo = TRUE', [id]);
+    const resCompra = await pool.query(
+      'SELECT id, obra_id, propietario_id, material_id, cantidad FROM compras WHERE id = $1 AND activo = TRUE',
+      [id]
+    );
     if (resCompra.rows.length === 0)
       return res.status(404).json({ success: false, message: 'Compra no encontrada' });
 
@@ -252,7 +256,7 @@ const actualizarCompra = async (req, res) => {
     if (monto <= 0)
       return res.status(400).json({ success: false, message: 'El monto debe ser mayor a 0' });
 
-    const resObra = await pool.query('SELECT id, propietario_id FROM obras WHERE id = $1', [obra_id]);
+    const resObra = await pool.query('SELECT id, nombre, propietario_id FROM obras WHERE id = $1', [obra_id]);
     if (resObra.rows.length === 0)
       return res.status(404).json({ success: false, message: 'La obra especificada no existe' });
 
@@ -269,7 +273,9 @@ const actualizarCompra = async (req, res) => {
         return res.status(404).json({ success: false, message: 'El sector especificado no existe en esta obra' });
     }
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `UPDATE compras SET
         obra_id         = $1,
         sector_id       = $2,
@@ -288,9 +294,39 @@ const actualizarCompra = async (req, res) => {
       ]
     );
 
+    // Si la compra está vinculada a un material, recalcular su precio unitario
+    if (compraActual.material_id && compraActual.cantidad) {
+      const resMat = await client.query('SELECT id, precio_unitario FROM materiales WHERE id = $1', [compraActual.material_id]);
+      if (resMat.rows.length > 0) {
+        const precioAnterior = parseFloat(resMat.rows[0].precio_unitario);
+        const precioNuevo = +(monto / compraActual.cantidad).toFixed(2);
+
+        await client.query(
+          `UPDATE materiales SET precio_unitario = $1, updated_at = NOW() WHERE id = $2`,
+          [precioNuevo, compraActual.material_id]
+        );
+
+        await client.query(
+          `INSERT INTO historial_incremento_material (material_id, precio_anterior, precio_nuevo, porcentaje_aplicado, motivo, usuario_id)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [
+            compraActual.material_id, precioAnterior, precioNuevo,
+            precioAnterior > 0 ? +(((precioNuevo - precioAnterior) / precioAnterior) * 100).toFixed(2) : null,
+            `Edición de compra #${id}`,
+            req.user.userId,
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
     return res.status(200).json({ success: true, message: 'Compra actualizada con éxito', data: result.rows[0] });
   } catch (error) {
+    await client.query('ROLLBACK');
     return res.status(500).json({ success: false, message: 'Error al actualizar la compra', error: error.message });
+  } finally {
+    client.release();
   }
 };
 
