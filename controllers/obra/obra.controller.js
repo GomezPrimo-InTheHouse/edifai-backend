@@ -441,15 +441,20 @@ const getResumenFinancieroObra = async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-         COALESCE(SUM(DISTINCT_PRESUPUESTOS.costo_mano_obra), 0) AS total_mano_obra,
-         COALESCE(SUM(pm.subtotal), 0) AS total_materiales_presupuestado
-       FROM (
-         SELECT DISTINCT p.id, p.costo_mano_obra
-         FROM presupuestos p
-         JOIN labores l ON l.id = p.labor_id
-         WHERE l.obra_id = $1
-       ) AS DISTINCT_PRESUPUESTOS
-       LEFT JOIN presupuesto_materiales pm ON pm.presupuesto_id = DISTINCT_PRESUPUESTOS.id`,
+         (
+           SELECT COALESCE(SUM(p.costo_mano_obra), 0)
+           FROM presupuestos p
+           JOIN labores l ON l.id = p.labor_id
+           WHERE l.obra_id = $1 AND l.archivado = FALSE AND p.archivado = FALSE
+         ) AS total_mano_obra,
+         (
+           SELECT COALESCE(SUM(pm.subtotal), 0)
+           FROM presupuesto_materiales pm
+           JOIN presupuestos p ON p.id = pm.presupuesto_id
+           JOIN labores l ON l.id = p.labor_id
+           WHERE l.obra_id = $1 AND l.archivado = FALSE AND p.archivado = FALSE
+         ) AS total_materiales_presupuestado
+      `,
       [id]
     );
 
