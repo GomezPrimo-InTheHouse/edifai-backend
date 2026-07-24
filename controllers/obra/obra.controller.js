@@ -428,6 +428,43 @@ const uploadImagenAvance = async (req, res) => {
   }
 };
 
+const getResumenFinancieroObra = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const resObra = await pool.query('SELECT id, propietario_id FROM obras WHERE id = $1', [id]);
+    if (resObra.rows.length === 0)
+      return res.status(404).json({ success: false, message: 'Obra no encontrada' });
+
+    if (req.user.rol_id === ROL_ADMIN_PRIVADO && resObra.rows[0].propietario_id !== req.user.userId)
+      return res.status(403).json({ success: false, message: 'Sin permiso sobre esta obra' });
+
+    const result = await pool.query(
+      `SELECT
+         COALESCE(SUM(DISTINCT_PRESUPUESTOS.costo_mano_obra), 0) AS total_mano_obra,
+         COALESCE(SUM(pm.subtotal), 0) AS total_materiales_presupuestado
+       FROM (
+         SELECT DISTINCT p.id, p.costo_mano_obra
+         FROM presupuestos p
+         JOIN labores l ON l.id = p.labor_id
+         WHERE l.obra_id = $1
+       ) AS DISTINCT_PRESUPUESTOS
+       LEFT JOIN presupuesto_materiales pm ON pm.presupuesto_id = DISTINCT_PRESUPUESTOS.id`,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        total_mano_obra: Number(result.rows[0].total_mano_obra),
+        total_materiales_presupuestado: Number(result.rows[0].total_materiales_presupuestado),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error al obtener resumen financiero', error: error.message });
+  }
+};
+
 module.exports = {
   createObra,
   getAllObras,
@@ -439,4 +476,5 @@ module.exports = {
   archivarObra,
   getObrasArchivadas,
   uploadImagenAvance,
+  getResumenFinancieroObra,
 };

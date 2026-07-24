@@ -10,7 +10,10 @@ const { verificarToken } = require('../../middlewares/autorizacionDeRoles.js');
 //controladores
 const {createObra, getAllObras, modifyObra,
    darDeBajaObra, getObrasByEstado, getObraByID,
-    getObrasByUbicacion, archivarObra, getObrasArchivadas, uploadImagenAvance} = require('../../controllers/obra/obra.controller.js')
+    getObrasByUbicacion, archivarObra, getObrasArchivadas,
+     uploadImagenAvance,
+      getResumenFinancieroObra,
+} = require('../../controllers/obra/obra.controller.js')
 
 const {  createTipoObra,
     modificarTipoDeObra,
@@ -73,7 +76,7 @@ router.get('/getBySector/:sector_id', verificarToken, getAvancesBySector);
 // Por ahora queda disponible para pruebas, igual que el resto del sistema
 router.put('/:id/vision',        verificarToken, guardarResultadoVision);
 // En obra.routes.js — agregar
-
+router.get('/:id/resumen-financiero', verificarToken, getResumenFinancieroObra);
 
 router.post('/uploadImagenAvance', verificarToken, upload.single('imagen'), uploadImagenAvance);
 
