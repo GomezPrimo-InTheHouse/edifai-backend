@@ -207,6 +207,32 @@ const TOOLS = [
       required: ['pregunta_original', 'motivo'],
     },
   },
+  {
+  name: 'consultar_compras',
+  description: 'Lista compras registradas con filtros opcionales por obra, proveedor, material o rango de fechas. Incluye totales. Usar cuando pregunten por compras, gastos de compras, proveedores o materiales comprados.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      obra_id:     { type: 'integer' },
+      obra_nombre: { type: 'string', description: 'Nombre o parte del nombre de la obra' },
+      proveedor:   { type: 'string', description: 'Nombre o parte del nombre del proveedor' },
+      material_id: { type: 'integer' },
+      desde:       { type: 'string', description: 'Fecha ISO: 2025-01-01' },
+      hasta:       { type: 'string', description: 'Fecha ISO: 2025-12-31' },
+    },
+  },
+},
+{
+  name: 'consultar_resumen_compras_obra',
+  description: 'Resumen completo de compras de una obra: total gastado, desglose por especialidad, por proveedor y listado de compras con materiales asociados. Usar cuando pregunten cuánto se compró o gastó en compras de una obra específica.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      obra_id:     { type: 'integer' },
+      obra_nombre: { type: 'string', description: 'Nombre o parte del nombre de la obra' },
+    },
+  },
+},
 ];
 
 // ── tools ─────────────────────────────────────────────────────
@@ -968,6 +994,127 @@ async function consultar_manual({ consulta, modulo } = {}) {
   }
 }
 
+async function consultar_compras({ obra_id, obra_nombre, proveedor, material_id, desde, hasta } = {}, req) {
+  if (obra_nombre && !obra_id) {
+    const resuelto = await resolverObraId({ obra_nombre }, req);
+    if (resuelto.error) return resuelto;
+    obra_id = resuelto.id;
+  }
+
+  const { where, params } = getFiltro(req);
+  const condiciones = ['c.activo = TRUE'];
+  const valores = [...params];
+
+  if (obra_id)     { valores.push(obra_id);           condiciones.push(`c.obra_id = $${valores.length}`); }
+  if (proveedor)   { valores.push(`%${proveedor}%`);  condiciones.push(`c.proveedor ILIKE $${valores.length}`); }
+  if (material_id) { valores.push(material_id);        condiciones.push(`c.material_id = $${valores.length}`); }
+  if (desde)       { valores.push(desde);              condiciones.push(`c.fecha >= $${valores.length}`); }
+  if (hasta)       { valores.push(hasta);              condiciones.push(`c.fecha <= $${valores.length}`); }
+
+  const result = await pool.query(`
+    SELECT
+      c.id, c.descripcion, c.proveedor, c.monto, c.fecha, c.cantidad,
+      o.nombre  AS obra_nombre,
+      e.nombre  AS especialidad_nombre,
+      m.nombre  AS material_nombre,
+      m.unidad  AS material_unidad,
+      u.nombre  AS usuario_nombre
+    FROM compras c
+    LEFT JOIN obras          o ON o.id = c.obra_id
+    LEFT JOIN especialidades e ON e.id = c.especialidad_id
+    LEFT JOIN materiales     m ON m.id = c.material_id
+    LEFT JOIN usuarios       u ON u.id = c.usuario_id
+    WHERE ${condiciones.join(' AND ')} ${where.replace('AND propietario_id', 'AND c.propietario_id')}
+    ORDER BY c.fecha DESC LIMIT 50
+  `, valores);
+
+  const total = result.rows.reduce((a, c) => a + Number(c.monto), 0);
+  const conMaterial    = result.rows.filter(c => c.material_nombre).length;
+  const sinMaterial    = result.rows.filter(c => !c.material_nombre).length;
+
+  return {
+    compras: result.rows,
+    total_compras: total,
+    cantidad_registros: result.rows.length,
+    con_material_asociado: conMaterial,
+    sin_material_asociado: sinMaterial,
+  };
+}
+
+async function consultar_resumen_compras_obra({ obra_id, obra_nombre } = {}, req) {
+  const resuelto = await resolverObraId({ obra_id, obra_nombre }, req);
+  if (resuelto.error) return resuelto;
+  obra_id = resuelto.id;
+
+  const obra = await pool.query(`SELECT id, nombre, propietario_id FROM obras WHERE id = $1`, [obra_id]);
+  if (obra.rowCount === 0) return { error: 'Obra no encontrada' };
+  if (req.user.rol_id === ROL_ADMIN_PRIVADO && obra.rows[0].propietario_id !== req.user.userId)
+    return { error: 'Sin permiso sobre esta obra' };
+
+  const [total, porEspecialidad, porProveedor, compras] = await Promise.all([
+
+    // Total general
+    pool.query(`
+      SELECT COALESCE(SUM(monto), 0)::numeric AS total,
+             COUNT(*)::int AS cantidad
+      FROM compras WHERE obra_id = $1 AND activo = TRUE
+    `, [obra_id]),
+
+    // Por especialidad
+    pool.query(`
+      SELECT e.nombre AS especialidad,
+             COALESCE(SUM(c.monto), 0)::numeric AS total,
+             COUNT(*)::int AS cantidad
+      FROM compras c
+      LEFT JOIN especialidades e ON e.id = c.especialidad_id
+      WHERE c.obra_id = $1 AND c.activo = TRUE
+      GROUP BY e.nombre ORDER BY total DESC
+    `, [obra_id]),
+
+    // Por proveedor
+    pool.query(`
+      SELECT COALESCE(c.proveedor, 'Sin proveedor') AS proveedor,
+             COALESCE(SUM(c.monto), 0)::numeric AS total,
+             COUNT(*)::int AS cantidad
+      FROM compras c
+      WHERE c.obra_id = $1 AND c.activo = TRUE
+      GROUP BY c.proveedor ORDER BY total DESC LIMIT 10
+    `, [obra_id]),
+
+    // Listado con materiales
+    pool.query(`
+      SELECT c.descripcion, c.monto, c.fecha, c.proveedor, c.cantidad,
+             e.nombre AS especialidad_nombre,
+             m.nombre AS material_nombre,
+             m.unidad AS material_unidad
+      FROM compras c
+      LEFT JOIN especialidades e ON e.id = c.especialidad_id
+      LEFT JOIN materiales     m ON m.id = c.material_id
+      WHERE c.obra_id = $1 AND c.activo = TRUE
+      ORDER BY c.fecha DESC LIMIT 30
+    `, [obra_id]),
+  ]);
+
+  // Compras que actualizaron stock de materiales
+  const comprasConMaterial = compras.rows.filter(c => c.material_nombre);
+  const totalMaterialesComprados = comprasConMaterial.reduce((a, c) => a + Number(c.monto), 0);
+
+  return {
+    obra: obra.rows[0],
+    resumen: {
+      total_compras:              Number(total.rows[0].total),
+      cantidad_compras:           total.rows[0].cantidad,
+      total_con_material:         totalMaterialesComprados,
+      total_sin_material:         Number(total.rows[0].total) - totalMaterialesComprados,
+      compras_con_material:       comprasConMaterial.length,
+      compras_sin_material:       compras.rows.length - comprasConMaterial.length,
+    },
+    por_especialidad: porEspecialidad.rows,
+    por_proveedor:    porProveedor.rows,
+    compras:          compras.rows,
+  };
+}
+
 // ── dispatcher ────────────────────────────────────────────────
 const EJECUTORES = {
   consultar_manual,
@@ -984,6 +1131,9 @@ const EJECUTORES = {
   consultar_estadisticas_obras,
   consultar_estadisticas_trabajadores,
   reportar_consulta_no_resuelta,
+  consultar_compras,
+  consultar_resumen_compras_obra,
+  
 };
 
 async function logErrorTool(nombre, input, req, detalleError) {

@@ -287,6 +287,11 @@ Cuando el usuario pregunte cuánto se gastó, costó o invirtió en una obra, us
 Si ninguna tool disponible te permite responder la pregunta del usuario, llamá a reportar_consulta_no_resuelta con la pregunta exacta y el motivo, y luego explicale honestamente al usuario que no podés responder eso todavía — nunca inventes una respuesta.
 Cuando el usuario pregunte cómo usar el sistema, cómo hacer algo paso a paso, qué significa un término, cuáles son las reglas de negocio o cómo funciona un módulo, usá la tool consultar_manual antes de responder. No inventes procedimientos — siempre basate en lo que devuelve el manual.
 
+
+Para preguntas sobre compras, gastos de compras, proveedores o materiales comprados usá consultar_compras. Para un resumen financiero completo de compras de una obra específica usá consultar_resumen_compras_obra. Las compras son distintas a los gastos imprevistos — no las mezcles.
+Para preguntas sobre materiales específicos comprados para una obra usá consultar_materiales_obra.
+
+
 ${contexto}`;
 }
 
