@@ -168,7 +168,11 @@ const modificarTrabajador = async (req, res) => {
           especialidad_id = $9, jefe_id = $10, updated_at = now()
       WHERE id = $11 
       RETURNING *
-    `, [nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id, usuario_id, especialidad_id, jefe_id, id]);
+    `, [
+      nombre, apellido, dni, email, telefono, fecha_ingreso, estado_id,
+      usuario_id !== undefined ? usuario_id : trabajador.usuario_id,
+      especialidad_id, jefe_id, id
+    ]);
 
     return res.status(200).json({
       message: 'Success',
