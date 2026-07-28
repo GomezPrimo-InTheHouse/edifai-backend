@@ -495,7 +495,7 @@ const marcarPresentismo = async (req, res) => {
 
     await client.query('COMMIT');
 
-    await notificar({ tipo: 'presentismo', mensaje: `${trabajador.nombre} ${trabajador.apellido} marcó presentismo (+3 puntos, total: ${puntosActuales})`, usuario_id: userId });
+    // await notificar({ tipo: 'presentismo', mensaje: `${trabajador.nombre} ${trabajador.apellido} marcó presentismo (+3 puntos, total: ${puntosActuales})`, usuario_id: userId });
     await notificar({ tipo: 'presentismo', mensaje: `${trabajador.nombre} ${trabajador.apellido} marcó presentismo (+3 puntos, total: ${puntosActuales})`, usuario_id: null });
 
     if (diasSemana === 3) await notificar({ tipo: 'bonus_presentismo', mensaje: `🏅 ¡Bien hecho ${trabajador.nombre}! Llevás 3 días esta semana. ¡Seguí así!`, usuario_id: userId });
