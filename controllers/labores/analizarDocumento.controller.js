@@ -176,9 +176,17 @@ Reglas para especialidad_id:
 - Si no encontrás match claro, dejá especialidad_id en null
 - Usá el id numérico exacto de la lista
 
+Reglas para precio_unitario y precio_total — MUY IMPORTANTE:
+- Estas son las reglas más importantes del análisis. Un error acá invalida todo el documento.
+- Si ves CUALQUIER monto en pesos ($ o números seguidos de "pesos") asociado a una labor, DEBÉS extraerlo. Nunca lo dejes en null si está visible en el documento.
+- El campo "cotizante_nombre" es INDEPENDIENTE de "precio_unitario" y "precio_total". Que el cotizante sea global (un solo proveedor para todo el documento) NO significa que haya que omitir los precios — significa únicamente que "cotizante_nombre" queda en null porque ya está en "cotizante_global".
+- NUNCA devuelvas el objeto "presupuesto" completo en null si la labor tiene algún monto asociado. En ese caso, "presupuesto" debe existir con "precio_unitario" y/o "precio_total" completos y solo "cotizante_nombre" en null.
+- "presupuesto": null se reserva EXCLUSIVAMENTE para labores que no tienen ningún dato económico asociado en el documento (ni precio, ni plazo, ni notas).
+- Si el documento muestra precio_unitario y cantidad pero no un total explícito, calculá precio_total = precio_unitario * cantidad.
+- Si el documento muestra un precio_total pero no un unitario explícito, calculá precio_unitario = precio_total / cantidad (si cantidad > 0).
+
 Reglas generales:
-- Si el documento tiene un solo cotizante, ponerlo en cotizante_global y null en cada presupuesto.cotizante_nombre
-- Si precio_unitario y cantidad están presentes, precio_total = precio_unitario * cantidad
+- Si el documento tiene un solo cotizante para todas las labores, poné ese nombre en "cotizante_global" y dejá "cotizante_nombre" en null en cada labor — pero completá igual precio_unitario y precio_total de cada una.
 - unidad_simbolo debe ser exactamente uno de: ${SIMBOLOS_UNIDAD.join(', ')} o null
 - Ignorar ítems que no sean labores (materiales puros, gastos administrativos)
 - Si no encontrás información, devolvé { "labores": [] }`;
@@ -237,6 +245,28 @@ const analizarDocumento = async (req, res) => {
         ? labor.especialidad_id
         : null;
 
+      let presupuesto = null;
+      if (labor.presupuesto) {
+        let precio_unitario = labor.presupuesto.precio_unitario ?? null;
+        let precio_total    = labor.presupuesto.precio_total ?? null;
+        const cantidad = labor.cantidad ?? null;
+
+        // Backup: recalcular si falta uno de los dos y hay cantidad
+        if (precio_unitario != null && precio_total == null && cantidad) {
+          precio_total = Number((precio_unitario * cantidad).toFixed(2));
+        } else if (precio_total != null && precio_unitario == null && cantidad) {
+          precio_unitario = Number((precio_total / cantidad).toFixed(2));
+        }
+
+        presupuesto = {
+          cotizante_nombre: labor.presupuesto.cotizante_nombre ?? parsed.cotizante_global ?? null,
+          precio_unitario,
+          precio_total,
+          plazo_dias: labor.presupuesto.plazo_dias ?? null,
+          notas: labor.presupuesto.notas ?? null,
+        };
+      }
+
       return {
         _key: idx,
         descripcion: labor.nombre_corto ?? labor.descripcion_completa ?? '',
@@ -247,15 +277,7 @@ const analizarDocumento = async (req, res) => {
         especialidad_id: especialidadIdValida,
         especialidad_nombre: especialidadIdValida ? especialidadMap[especialidadIdValida] : null,
         seleccionada: true,
-        presupuesto: labor.presupuesto
-          ? {
-            cotizante_nombre: labor.presupuesto.cotizante_nombre ?? parsed.cotizante_global ?? null,
-            precio_unitario: labor.presupuesto.precio_unitario ?? null,
-            precio_total: labor.presupuesto.precio_total ?? null,
-            plazo_dias: labor.presupuesto.plazo_dias ?? null,
-            notas: labor.presupuesto.notas ?? null,
-          }
-          : null,
+        presupuesto,
       };
     });
 
