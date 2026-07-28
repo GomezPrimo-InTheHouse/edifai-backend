@@ -23,34 +23,46 @@ async function analyzeAvanceImage(avanceId, imagenUrl, laborId) {
 
     // Construir prompt
     const prompt = imagenAnterior
-      ? `Sos un inspector de obras de construcción experto. Analizá el avance de esta labor.
+      ? `Sos un asistente de gestión de obras de construcción. Tu rol es ayudar al administrador a hacer un seguimiento visual de los avances, no actuar como auditor estricto.
 
 LABOR: "${labor.nombre}"
-DESCRIPCIÓN DE LA LABOR: "${labor.descripcion}"
+DESCRIPCIÓN: "${labor.descripcion}"
 
-Se te proporciona:
-1. La imagen actual del avance (primera imagen)
-2. La imagen anterior aprobada de referencia (segunda imagen)
+Se te proporcionan dos imágenes:
+1. Imagen actual del avance (primera imagen)
+2. Imagen anterior aprobada como referencia (segunda imagen)
 
-Analizá ambas imágenes y determiná:
-- ¿La imagen actual muestra progreso real respecto a la anterior?
-- ¿El trabajo visible es consistente con la descripción de la labor?
-- ¿Hay señales de que el avance es genuino?
+CRITERIO DE EVALUACIÓN — Aplicá criterio amplio y generoso:
+- Las fotos de obra son tomadas desde el celular en condiciones reales: pueden tener escombros, materiales apilados, herramientas, suciedad. Eso es NORMAL y no es motivo de rechazo.
+- Si la imagen muestra cualquier elemento relacionado con construcción (hormigón, ladrillos, revoques, excavaciones, instalaciones, estructura, materiales, herramientas, etc.) es evidencia válida de trabajo en curso.
+- Si la imagen actual muestra el mismo sector que la anterior aunque con pequeñas diferencias, consideralo progreso válido.
+- Solo recomendá RECHAZAR si la imagen claramente no tiene ninguna relación con obra (ej: foto de una persona sin contexto de obra, un auto, un paisaje sin construcción).
+- En caso de duda, siempre preferí APROBAR — el administrador puede verificar presencialmente si lo necesita.
+- No exijas que la imagen sea idéntica al tipo de trabajo descrito — en obra los trabajadores fotografían lo que tienen a mano en el momento.
 
-Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación clara: "RECOMENDACIÓN: Aprobar" o "RECOMENDACIÓN: Rechazar" o "RECOMENDACIÓN: Revisar manualmente".`
-      : `Sos un inspector de obras de construcción experto. Analizá el avance de esta labor.
+Escribí un análisis breve de 1-2 oraciones describiendo qué se ve en la imagen actual y si hay diferencias visibles respecto a la anterior. Luego indicá la recomendación.
+
+Formato de respuesta:
+[Descripción breve de lo que se ve]
+RECOMENDACIÓN: Aprobar`
+      : `Sos un asistente de gestión de obras de construcción. Tu rol es ayudar al administrador a hacer un seguimiento visual de los avances.
 
 LABOR: "${labor.nombre}"
-DESCRIPCIÓN DE LA LABOR: "${labor.descripcion}"
+DESCRIPCIÓN: "${labor.descripcion}"
 
 Esta es la primera imagen registrada para esta labor.
 
-Analizá la imagen y determiná:
-- ¿La imagen muestra trabajo relacionado con la labor descrita?
-- ¿El trabajo visible es consistente con la descripción?
-- ¿Hay señales de que el avance es genuino?
+CRITERIO DE EVALUACIÓN — Aplicá criterio amplio y generoso:
+- Las fotos de obra son tomadas desde el celular en condiciones reales: pueden tener escombros, materiales apilados, herramientas, suciedad. Eso es NORMAL.
+- Si la imagen muestra cualquier elemento relacionado con construcción (hormigón, ladrillos, revoques, excavaciones, instalaciones, estructura, materiales de obra, herramientas, etc.) es evidencia válida de trabajo en curso.
+- Solo recomendá RECHAZAR si la imagen claramente no tiene ninguna relación con obra (ej: foto de una persona sin contexto de obra, un auto, un paisaje sin construcción).
+- En caso de duda, siempre preferí APROBAR — el administrador puede verificar presencialmente si lo necesita.
 
-Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación clara: "RECOMENDACIÓN: Aprobar" o "RECOMENDACIÓN: Rechazar" o "RECOMENDACIÓN: Revisar manualmente".`;
+Escribí un análisis breve de 1-2 oraciones describiendo qué se ve. Luego indicá la recomendación.
+
+Formato de respuesta:
+[Descripción breve de lo que se ve]
+RECOMENDACIÓN: Aprobar`;
 
     // Construir content para Claude
     const content = imagenAnterior
@@ -67,30 +79,24 @@ Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Content-Type':    'application/json',
-        'x-api-key':       ANTHROPIC_API_KEY,
+        'Content-Type':      'application/json',
+        'x-api-key':         ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5',
-        max_tokens: 400,
+        max_tokens: 300,
         messages:   [{ role: 'user', content }],
       }),
     });
-    
 
     const data = await response.json();
-    console.log('🔍 Respuesta Anthropic Vision:', JSON.stringify(data, null, 2)); // ← agregar
-    console.log('API KEY presente:', !!process.env.ANTHROPIC_API_KEY);
-    console.log('API KEY primeros chars:', process.env.ANTHROPIC_API_KEY?.slice(0, 15));
     const resultado_vision = data.content?.[0]?.text ?? 'No se pudo analizar la imagen.';
 
     // Determinar cambio_detectado desde la recomendación
-    const cambio_detectado = resultado_vision.includes('RECOMENDACIÓN: Aprobar')
-      ? true
-      : resultado_vision.includes('RECOMENDACIÓN: Rechazar')
+    const cambio_detectado = resultado_vision.includes('RECOMENDACIÓN: Rechazar')
       ? false
-      : null;
+      : true; // default a true (aprobar) — solo false si explícitamente rechaza
 
     // Guardar resultado en DB
     await pool.query(
@@ -106,7 +112,6 @@ Devolvé un análisis conciso en 2-3 oraciones. Terminá con una recomendación 
     console.log(`✅ Visión IA completada para avance #${avanceId}`);
   } catch (error) {
     console.error(`❌ Error en análisis de visión IA para avance #${avanceId}:`, error.message);
-    // No lanzar — es background, no debe afectar al usuario
   }
 }
 
