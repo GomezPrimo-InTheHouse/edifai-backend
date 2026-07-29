@@ -14,7 +14,7 @@ const crearGastoImprevisto = async (req, res) => {
   const client = await pool.connect();
   try {
     const {
-      obra_id, especialidad_id, descripcion, motivo,
+      obra_id, sector_id, especialidad_id, descripcion, motivo,
       monto, pagado_por_id, pagado_por_nombre,
       deudor_cliente_id, deudor_usuario_id, fecha,
       ticket_url, formas_pago,
@@ -32,11 +32,11 @@ const crearGastoImprevisto = async (req, res) => {
     const propietario_id = req.user.rol_id === ROL_ADMIN_PRIVADO ? req.user.userId : null;
 
     const faltantes = [];
-    if (!obra_id)         faltantes.push('obra_id');
+    if (!obra_id) faltantes.push('obra_id');
     if (!especialidad_id) faltantes.push('especialidad_id');
-    if (!descripcion)     faltantes.push('descripcion');
-    if (!monto)           faltantes.push('monto');
-    if (!fecha)           faltantes.push('fecha');
+    if (!descripcion) faltantes.push('descripcion');
+    if (!monto) faltantes.push('monto');
+    if (!fecha) faltantes.push('fecha');
     if (!formas_pago || !Array.isArray(formas_pago) || formas_pago.length === 0)
       faltantes.push('formas_pago');
     if (faltantes.length > 0)
@@ -120,21 +120,27 @@ const crearGastoImprevisto = async (req, res) => {
         return res.status(404).json({ success: false, message: `La forma de pago ${fp.forma_pago_id} no existe` });
     }
 
+    if (sector_id) {
+  const resSector = await pool.query('SELECT id FROM sectores WHERE id = $1 AND obra_id = $2 AND activo = TRUE', [sector_id, obra_id]);
+  if (resSector.rows.length === 0)
+    return res.status(404).json({ success: false, message: 'El sector especificado no existe en esta obra' });
+}
+
     await client.query('BEGIN');
 
-    const result = await client.query(
-      `INSERT INTO gastos_imprevistos (
-        obra_id, especialidad_id, descripcion, motivo, monto,
-        pagado_por_id, deudor_cliente_id, deudor_usuario_id,
-        estado_id, fecha, deudor_automatico, ticket_url, propietario_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      RETURNING *`,
-      [
-        obra_id, especialidad_id, descripcion, motivo ?? null, monto,
-        pagador_id, deudor_cliente_final, deudor_usuario_final,
-        16, fecha, deudor_automatico, ticket_url ?? null, propietario_id,
-      ]
-    );
+const result = await client.query(
+  `INSERT INTO gastos_imprevistos (
+    obra_id, sector_id, especialidad_id, descripcion, motivo, monto,
+    pagado_por_id, deudor_cliente_id, deudor_usuario_id,
+    estado_id, fecha, deudor_automatico, ticket_url, propietario_id
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+  RETURNING *`,
+  [
+    obra_id, sector_id ?? null, especialidad_id, descripcion, motivo ?? null, monto,
+    pagador_id, deudor_cliente_final, deudor_usuario_final,
+    16, fecha, deudor_automatico, ticket_url ?? null, propietario_id,
+  ]
+);
 
     // ── LOG 4 ─────────────────────────────────────────────────
     console.log('💾 Gasto insertado con pagado_por_id:', result.rows[0].pagado_por_id);
@@ -220,11 +226,14 @@ const obtenerGastosImprevistos = async (req, res) => {
 const result = await pool.query(
       `SELECT gi.*,
               o.nombre   AS obra_nombre,
+              s.tipo     AS sector_tipo,
+              s.valor    AS sector_valor,
               e.nombre   AS especialidad_nombre,
               est.nombre AS estado_nombre,
               tp.nombre || ' ' || tp.apellido AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
+       LEFT JOIN sectores       s   ON s.id   = gi.sector_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
        LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
@@ -306,16 +315,20 @@ const obtenerGastoImprevistoPorId = async (req, res) => {
 const result = await pool.query(
       `SELECT gi.*,
               o.nombre   AS obra_nombre,
+              s.tipo     AS sector_tipo,
+              s.valor    AS sector_valor,
               e.nombre   AS especialidad_nombre,
               est.nombre AS estado_nombre,
               tp.nombre || ' ' || tp.apellido AS pagado_por_nombre
        FROM gastos_imprevistos gi
        LEFT JOIN obras          o   ON o.id   = gi.obra_id
+       LEFT JOIN sectores       s   ON s.id   = gi.sector_id
        LEFT JOIN especialidades e   ON e.id   = gi.especialidad_id
        LEFT JOIN estados        est ON est.id = gi.estado_id
        LEFT JOIN trabajadores   tp  ON tp.id  = gi.pagado_por_id
-       WHERE gi.id = $1 AND gi.estado_id != 15`,
-      [id]
+       WHERE gi.estado_id != 15 ${whereExtra}
+       ORDER BY gi.fecha DESC`,
+      params
     );
 
     if (result.rows.length === 0)

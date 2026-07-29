@@ -11,6 +11,7 @@ const {
   getTrabajadorById,
   getTrabajadoresByEspecialidad,
   getJefesConEquipoPorEspecialidad,
+  getObrasPorTrabajador
 } = require('../../controllers/trabajador/trabajador.controller.js');
 
 router.get('/getAll',                              verificarToken, getAllTrabajadores);
@@ -20,6 +21,7 @@ router.get('/getByEspecialidad/:especialidad_id',  verificarToken, getTrabajador
 router.get('/getJefesConEquipo/:especialidad_id',  verificarToken, getJefesConEquipoPorEspecialidad); // ← antes de /:id
 router.put('/modificar/:id',                       verificarToken, modificarTrabajador);
 router.delete('/eliminar/:id',                     verificarToken, darDeBajaTrabajador);
+router.get('/:id/obras',                           verificarToken, getObrasPorTrabajador);
 router.get('/:id',                                 verificarToken, getTrabajadorById);  // ← siempre al final
 
 module.exports = router;

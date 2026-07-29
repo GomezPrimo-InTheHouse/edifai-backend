@@ -375,6 +375,28 @@ const getJefesConEquipoPorEspecialidad = async (req, res) => {
   }
 };
 
+const getObrasPorTrabajador = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT DISTINCT o.id, o.nombre, o.estado_id, o.archivado
+       FROM trabajadores_obras tob
+       JOIN obras o ON o.id = tob.obra_id
+       WHERE tob.trabajador_id = $1
+         AND tob.fecha_hasta IS NULL
+         AND o.archivado = FALSE
+         AND o.estado_id NOT IN (21, 22)
+       ORDER BY o.nombre`,
+      [id]
+    );
+
+    return res.status(200).json({ success: true, obras: result.rows });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error al obtener obras del trabajador', error: error.message });
+  }
+};
+
 module.exports = {
   getAllTrabajadores,
   createTrabajador,
@@ -384,4 +406,5 @@ module.exports = {
   getTrabajadorById,
   getTrabajadoresByEspecialidad,
   getJefesConEquipoPorEspecialidad,
+  getObrasPorTrabajador,
 };
