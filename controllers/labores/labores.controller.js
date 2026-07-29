@@ -1505,4 +1505,5 @@ module.exports = {
   cambiarEstadoLabor,
   obtenerLaboresPorObra,
   obtenerLaboresArchivadas,
+  vincularEquipoAObra,
 };
